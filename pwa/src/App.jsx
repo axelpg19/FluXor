@@ -1,0 +1,400 @@
+import { useState, useEffect, useCallback } from 'react';
+import { supabase } from './supabase.js';
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+const MXN = (n) => Number(n || 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+const today = () => new Date().toISOString().slice(0, 10);
+const thisMonth = () => new Date().toISOString().slice(0, 7);
+
+// ── Íconos SVG inline ─────────────────────────────────────────────────────────
+
+const Ico = {
+  down:   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>,
+  up:     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>,
+  clock:  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+  arrows: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>,
+  user:   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
+  x:      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+};
+
+const TYPE_META = {
+  gasto:         { label: 'Gasto',         icon: Ico.down,   color: 'var(--red)',    cls: 'gasto' },
+  ingreso:       { label: 'Ingreso',       icon: Ico.up,     color: 'var(--green)',  cls: 'ingreso' },
+  pendiente:     { label: 'Pendiente',     icon: Ico.clock,  color: 'var(--yellow)', cls: 'pendiente' },
+  transferencia: { label: 'Transferencia', icon: Ico.arrows, color: 'var(--purple)', cls: 'transferencia' },
+};
+
+// ── Pantalla de Auth ──────────────────────────────────────────────────────────
+
+function AuthScreen({ onAuth }) {
+  const [mode, setMode] = useState('signin'); // 'signin' | 'signup' | 'forgot'
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [isError, setIsError] = useState(false);
+
+  function showMsg(text, error = false) { setMsg(text); setIsError(error); }
+
+  async function handleSignIn(e) {
+    e.preventDefault();
+    setLoading(true); setMsg('');
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    setLoading(false);
+    if (error) showMsg(translateError(error), true);
+    else onAuth(data.session);
+  }
+
+  async function handleSignUp(e) {
+    e.preventDefault();
+    if (password.length < 8) { showMsg('La contraseña debe tener al menos 8 caracteres.', true); return; }
+    setLoading(true); setMsg('');
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    setLoading(false);
+    if (error) showMsg(translateError(error), true);
+    else if (!data.session) showMsg('Revisa tu email para confirmar tu cuenta.');
+    else onAuth(data.session);
+  }
+
+  async function handleForgot(e) {
+    e.preventDefault();
+    setLoading(true); setMsg('');
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    setLoading(false);
+    if (error) showMsg(translateError(error), true);
+    else showMsg('Si el email existe, recibirás instrucciones.');
+  }
+
+  function translateError(e) {
+    const m = e.message?.toLowerCase() || '';
+    if (m.includes('invalid login')) return 'Email o contraseña incorrectos.';
+    if (m.includes('already registered')) return 'Ya existe una cuenta con ese email.';
+    if (m.includes('email not confirmed')) return 'Confirma tu email primero.';
+    return e.message;
+  }
+
+  const handler = mode === 'signin' ? handleSignIn : mode === 'signup' ? handleSignUp : handleForgot;
+
+  return (
+    <div className="pwa-auth">
+      <div className="pwa-auth-logo">FluXor</div>
+      <p className="pwa-auth-sub">
+        {mode === 'signin' ? 'Inicia sesión para sincronizar tus finanzas' :
+         mode === 'signup' ? 'Crea tu cuenta gratuita de FluXor' :
+         'Recupera el acceso a tu cuenta'}
+      </p>
+
+      <form className="pwa-auth-form" onSubmit={handler}>
+        <div className="pwa-field">
+          <label>Email</label>
+          <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+            placeholder="tu@email.com" autoComplete="email" required />
+        </div>
+        {mode !== 'forgot' && (
+          <div className="pwa-field">
+            <label>Contraseña</label>
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+              placeholder="••••••••" autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} required />
+          </div>
+        )}
+        {msg && <p className="pwa-error" style={{ color: isError ? 'var(--red)' : 'var(--green)' }}>{msg}</p>}
+        <button type="submit" className="pwa-submit" disabled={loading}>
+          {loading ? 'Un momento…' :
+           mode === 'signin' ? 'Iniciar sesión' :
+           mode === 'signup' ? 'Crear cuenta' : 'Enviar instrucciones'}
+        </button>
+      </form>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center' }}>
+        {mode === 'signin' && <>
+          <button className="pwa-auth-toggle" onClick={() => { setMsg(''); setMode('signup'); }}>¿Sin cuenta? Regístrate gratis</button>
+          <button className="pwa-auth-toggle" onClick={() => { setMsg(''); setMode('forgot'); }}>Olvidé mi contraseña</button>
+        </>}
+        {mode !== 'signin' && (
+          <button className="pwa-auth-toggle" onClick={() => { setMsg(''); setMode('signin'); }}>← Volver a iniciar sesión</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Bottom Sheet de movimiento ────────────────────────────────────────────────
+
+function MovementSheet({ tipo, userId, onSave, onClose }) {
+  const meta = TYPE_META[tipo];
+  const [monto, setMonto] = useState('');
+  const [categoria, setCategoria] = useState('');
+  const [metodo, setMetodo] = useState('efectivo');
+  const [fecha, setFecha] = useState(today());
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    const montoNum = Number(monto);
+    if (!montoNum || montoNum <= 0) { setError('El monto debe ser mayor a cero.'); return; }
+    if (!categoria.trim()) { setError('Escribe una categoría o descripción.'); return; }
+
+    setLoading(true);
+    const row = {
+      user_id:   userId,
+      tipo,
+      monto:     montoNum,
+      categoria: categoria.trim(),
+      metodo,
+      fecha,
+      estado:    tipo === 'pendiente' ? 'activo' : 'activo',
+      recurrente: 0,
+      moneda:    'MXN',
+      tipo_cambio: 1,
+      synced_at: new Date().toISOString()
+    };
+
+    const { error: err } = await supabase.from('movimientos').insert([row]);
+    setLoading(false);
+    if (err) { setError('Error al guardar. Intenta de nuevo.'); return; }
+    onSave();
+  }
+
+  return (
+    <>
+      <div className="pwa-sheet-overlay" onClick={onClose} />
+      <div className="pwa-sheet">
+        <div className="pwa-sheet-handle" />
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <h2 className="pwa-sheet-title" style={{ color: meta.color, margin: 0 }}>
+            <span style={{ marginRight: 8 }}>{meta.icon}</span>{meta.label}
+          </h2>
+          <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer' }}>
+            {Ico.x}
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          {/* Monto grande */}
+          <div className="pwa-field">
+            <label>Monto</label>
+            <input
+              type="number" inputMode="decimal" min="0.01" step="0.01"
+              value={monto} onChange={e => setMonto(e.target.value)}
+              placeholder="0.00" autoFocus
+            />
+          </div>
+          {monto && Number(monto) > 0 && (
+            <div className="pwa-amount-preview" style={{ color: meta.color }}>
+              {MXN(monto)}
+            </div>
+          )}
+
+          <div className="pwa-field">
+            <label>Descripción / Categoría</label>
+            <input
+              type="text" value={categoria} onChange={e => setCategoria(e.target.value)}
+              placeholder={tipo === 'gasto' ? 'Tacos, renta, gasolina…' :
+                           tipo === 'ingreso' ? 'Sueldo, freelance…' :
+                           tipo === 'pendiente' ? 'Juan, préstamo amigo…' : 'Descripción'}
+            />
+          </div>
+
+          {tipo !== 'pendiente' && (
+            <div className="pwa-field">
+              <label>Método de pago</label>
+              <select value={metodo} onChange={e => setMetodo(e.target.value)}>
+                <option value="efectivo">Efectivo</option>
+                <option value="tarjeta">Tarjeta</option>
+                <option value="transferencia">Transferencia</option>
+              </select>
+            </div>
+          )}
+
+          <div className="pwa-field">
+            <label>Fecha</label>
+            <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} />
+          </div>
+
+          {error && <p className="pwa-error">{error}</p>}
+
+          <button type="submit" className="pwa-submit" disabled={loading}>
+            {loading ? 'Guardando…' : `Guardar ${meta.label}`}
+          </button>
+        </form>
+      </div>
+    </>
+  );
+}
+
+// ── User Menu Sheet ───────────────────────────────────────────────────────────
+
+function UserSheet({ session, onClose, onSignOut }) {
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    onSignOut();
+  }
+  return (
+    <>
+      <div className="pwa-sheet-overlay" onClick={onClose} />
+      <div className="pwa-sheet">
+        <div className="pwa-sheet-handle" />
+        <h2 className="pwa-sheet-title">Mi cuenta</h2>
+        <div style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 24 }}>
+          <strong style={{ color: 'var(--text)', display: 'block', marginBottom: 4 }}>Email</strong>
+          {session.user.email}
+        </div>
+        <button type="button" className="pwa-submit" style={{ background: 'var(--surface)', color: 'var(--red)', border: '1px solid rgba(248,113,113,0.3)' }} onClick={handleSignOut}>
+          Cerrar sesión
+        </button>
+        <button type="button" className="pwa-submit" style={{ background: 'none', color: 'var(--muted)', marginTop: 10 }} onClick={onClose}>
+          Cancelar
+        </button>
+      </div>
+    </>
+  );
+}
+
+// ── App principal ─────────────────────────────────────────────────────────────
+
+export default function App() {
+  const [session, setSession] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [movements, setMovements] = useState([]);
+  const [metrics, setMetrics] = useState({ ingresos: 0, gastos: 0, balance: 0 });
+  const [activeSheet, setActiveSheet] = useState(null); // null | tipo | 'user'
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Restaurar sesión
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setLoading(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => {
+      setSession(s);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Cargar movimientos del mes actual
+  const loadData = useCallback(async () => {
+    if (!session?.user?.id) return;
+    const month = thisMonth();
+    const { data } = await supabase
+      .from('movimientos')
+      .select('*')
+      .eq('user_id', session.user.id)
+      .is('deleted_at', null)
+      .gte('fecha', `${month}-01`)
+      .lte('fecha', `${month}-31`)
+      .order('fecha', { ascending: false })
+      .limit(50);
+
+    if (data) {
+      setMovements(data);
+      const ingresos  = data.filter(m => m.tipo === 'ingreso').reduce((s, m) => s + m.monto, 0);
+      const gastos    = data.filter(m => m.tipo === 'gasto').reduce((s, m) => s + m.monto, 0);
+      setMetrics({ ingresos, gastos, balance: ingresos - gastos });
+    }
+  }, [session]);
+
+  useEffect(() => { loadData(); }, [loadData, refreshKey]);
+
+  function handleSave() {
+    setActiveSheet(null);
+    setRefreshKey(k => k + 1);
+  }
+
+  if (loading) return <div className="pwa-shell"><div className="pwa-spinner" /></div>;
+  if (!session) return <div className="pwa-shell"><AuthScreen onAuth={setSession} /></div>;
+
+  const month = new Date().toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+
+  return (
+    <div className="pwa-shell">
+      {/* Header */}
+      <header className="pwa-header">
+        <div>
+          <div className="pwa-header-title">FluXor</div>
+          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1, textTransform: 'capitalize' }}>{month}</div>
+        </div>
+        <div className="pwa-header-right">
+          <button className="pwa-user-btn" onClick={() => setActiveSheet('user')} title="Mi cuenta">
+            {Ico.user}
+          </button>
+        </div>
+      </header>
+
+      {/* Métricas */}
+      <div className="pwa-metrics">
+        <div className="pwa-metric">
+          <div className="pwa-metric-label">Ingresos</div>
+          <div className="pwa-metric-value income">{MXN(metrics.ingresos)}</div>
+        </div>
+        <div className="pwa-metric">
+          <div className="pwa-metric-label">Gastos</div>
+          <div className="pwa-metric-value expense">{MXN(metrics.gastos)}</div>
+        </div>
+        <div className="pwa-metric" style={{ gridColumn: '1 / -1' }}>
+          <div className="pwa-metric-label">Balance del mes</div>
+          <div className="pwa-metric-value balance" style={{ color: metrics.balance >= 0 ? 'var(--green)' : 'var(--red)' }}>
+            {MXN(metrics.balance)}
+          </div>
+        </div>
+      </div>
+
+      {/* Botones de acción */}
+      <div className="pwa-actions">
+        {Object.entries(TYPE_META).map(([tipo, meta]) => (
+          <button key={tipo} className={`pwa-action-btn ${meta.cls}`} onClick={() => setActiveSheet(tipo)}>
+            <span style={{ color: meta.color }}>{meta.icon}</span>
+            <span>{meta.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Lista de movimientos */}
+      <div className="pwa-movements">
+        <div className="pwa-movements-title">Movimientos del mes</div>
+        {movements.length === 0 && (
+          <div className="pwa-empty">Sin movimientos este mes.<br />Usa los botones de arriba para registrar.</div>
+        )}
+        {movements.map((m) => {
+          const meta = TYPE_META[m.tipo] || TYPE_META.gasto;
+          const sign = m.tipo === 'gasto' ? '-' : m.tipo === 'ingreso' ? '+' : '';
+          return (
+            <div key={m.sync_id || m.id} className="pwa-movement-row">
+              <div className={`pwa-movement-icon ${meta.cls}`}>{meta.icon}</div>
+              <div className="pwa-movement-info">
+                <div className="pwa-movement-cat">{m.categoria || '—'}</div>
+                <div className="pwa-movement-meta">
+                  {new Date(m.fecha + 'T12:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}
+                  {m.metodo ? ` · ${m.metodo}` : ''}
+                </div>
+              </div>
+              <div className={`pwa-movement-amount ${meta.cls}`}>
+                {sign}{MXN(m.monto)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Sheets */}
+      {activeSheet && activeSheet !== 'user' && (
+        <MovementSheet
+          tipo={activeSheet}
+          userId={session.user.id}
+          onSave={handleSave}
+          onClose={() => setActiveSheet(null)}
+        />
+      )}
+      {activeSheet === 'user' && (
+        <UserSheet
+          session={session}
+          onClose={() => setActiveSheet(null)}
+          onSignOut={() => { setSession(null); setActiveSheet(null); }}
+        />
+      )}
+    </div>
+  );
+}
