@@ -402,13 +402,17 @@ export default function App() {
   const loadData = useCallback(async () => {
     if (!session?.user?.id) return;
     const month = selectedMonth;
+    // Calcular el último día real del mes (evita el bug con meses de menos de 31 días)
+    const [y, m] = month.split('-').map(Number);
+    const lastDay = new Date(y, m, 0).getDate(); // día 0 del mes siguiente = último día del mes actual
+    const lastDate = `${month}-${String(lastDay).padStart(2, '0')}`;
     const { data } = await supabase
       .from('movimientos')
       .select('*')
       .eq('user_id', session.user.id)
       .is('deleted_at', null)
       .gte('fecha', `${month}-01`)
-      .lte('fecha', `${month}-31`)
+      .lte('fecha', lastDate)
       .order('fecha', { ascending: false })
       .limit(50);
 
