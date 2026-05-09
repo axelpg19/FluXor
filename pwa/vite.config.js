@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'fluxor-icon.svg'],
+      includeAssets: ['icon-192.png', 'icon-512.png', 'icon-maskable.png', 'apple-touch-icon.png', 'logo-fluxor.png'],
       manifest: {
         name: 'FluXor',
         short_name: 'FluXor',
@@ -18,7 +18,9 @@ export default defineConfig({
         orientation: 'any',
         start_url: '/',
         icons: [
-          { src: '/fluxor-icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' }
+          { src: '/icon-192.png',    sizes: '192x192',  type: 'image/png', purpose: 'any' },
+          { src: '/icon-512.png',    sizes: '512x512',  type: 'image/png', purpose: 'any' },
+          { src: '/icon-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
         ]
       },
       workbox: {
