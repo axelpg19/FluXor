@@ -56,6 +56,16 @@ html, body, #root {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
+.pwa-month-picker {
+  width: 118px;
+  margin-top: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 12px;
+  padding: 6px 8px;
+}
 .pwa-header-right { display: flex; align-items: center; gap: 10px; }
 .pwa-user-btn {
   width: 32px; height: 32px;
@@ -195,6 +205,7 @@ html, body, #root {
 }
 .pwa-sheet-title { font-size: 18px; font-weight: 700; margin-bottom: 20px; }
 .pwa-field { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.pwa-field-row { display: grid; grid-template-columns: 0.8fr 1fr; gap: 10px; }
 .pwa-field label { font-size: 13px; font-weight: 600; color: var(--muted); }
 .pwa-field input, .pwa-field select {
   background: var(--surface);
@@ -226,6 +237,34 @@ html, body, #root {
 .pwa-submit:active { opacity: 0.8; }
 .pwa-submit:disabled { opacity: 0.4; }
 .pwa-error { color: var(--red); font-size: 13px; text-align: center; padding: 8px 0; }
+.pwa-msi-box {
+  border: 1px solid rgba(129,140,248,0.25);
+  background: rgba(129,140,248,0.08);
+  border-radius: 14px;
+  padding: 12px;
+  margin-bottom: 16px;
+}
+.pwa-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+.pwa-check input { width: 18px; height: 18px; accent-color: var(--accent); }
+
+@media (min-width: 720px) {
+  .pwa-shell { max-width: 520px; margin: 0 auto; border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
+  .pwa-sheet { left: 50%; right: auto; width: 520px; transform: translateX(-50%); border-radius: 20px 20px 0 0; }
+  @keyframes sheet-up { from { transform: translate(-50%, 100%); } to { transform: translate(-50%, 0); } }
+}
+
+@media (max-width: 380px) {
+  .pwa-actions { grid-template-columns: repeat(2, 1fr); }
+  .pwa-field-row { grid-template-columns: 1fr; gap: 0; }
+}
 
 /* ── Auth screen ───────────────────────────────────────────── */
 .pwa-auth {

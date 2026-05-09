@@ -6,6 +6,7 @@ import { supabase } from './supabase.js';
 const MXN = (n) => Number(n || 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
 const today = () => new Date().toISOString().slice(0, 10);
 const thisMonth = () => new Date().toISOString().slice(0, 7);
+const uid = () => crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
 // ── Íconos SVG inline ─────────────────────────────────────────────────────────
 
@@ -121,37 +122,115 @@ function AuthScreen({ onAuth }) {
 
 // ── Bottom Sheet de movimiento ────────────────────────────────────────────────
 
-function MovementSheet({ tipo, userId, onSave, onClose }) {
+function MovementSheet({ tipo, userId, cards, selectedMonth, onSave, onClose }) {
   const meta = TYPE_META[tipo];
   const [monto, setMonto] = useState('');
   const [categoria, setCategoria] = useState('');
-  const [metodo, setMetodo] = useState('efectivo');
-  const [fecha, setFecha] = useState(today());
+  const [metodo, setMetodo] = useState(tipo === 'transferencia' ? 'transferencia' : 'efectivo');
+  const [subtipo, setSubtipo] = useState('debito');
+  const [fuente, setFuente] = useState('');
+  const [destino, setDestino] = useState('');
+  const [month, setMonth] = useState(selectedMonth || thisMonth());
+  const [fecha, setFecha] = useState(() => {
+    const day = today().slice(8, 10);
+    return `${selectedMonth || thisMonth()}-${day}`;
+  });
+  const [msiActivo, setMsiActivo] = useState(false);
+  const [meses, setMeses] = useState('3');
+  const [conIntereses, setConIntereses] = useState(false);
+  const [tasaInteres, setTasaInteres] = useState('0');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const cardOptions = cards.filter(c => !subtipo || c.tipo === subtipo);
+  const creditCards = cards.filter(c => c.tipo === 'credito');
+
+  function handleMonthChange(value) {
+    setMonth(value);
+    const day = fecha.slice(8, 10) || '01';
+    const daysInMonth = new Date(Number(value.slice(0, 4)), Number(value.slice(5, 7)), 0).getDate();
+    setFecha(`${value}-${String(Math.min(Number(day), daysInMonth)).padStart(2, '0')}`);
+  }
+
+  async function ensureCard(nombre, tipoTarjeta) {
+    const clean = String(nombre || '').trim();
+    if (!clean || !tipoTarjeta) return;
+    const exists = cards.some(c => c.nombre.toLowerCase() === clean.toLowerCase() && c.tipo === tipoTarjeta);
+    if (exists) return;
+    await supabase.from('tarjetas').insert([{
+      user_id: userId,
+      nombre: clean,
+      tipo: tipoTarjeta,
+      estado: tipoTarjeta === 'credito' ? 'pendiente' : 'pagado',
+      sync_id: uid(),
+      synced_at: new Date().toISOString()
+    }]);
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
     const montoNum = Number(monto);
     if (!montoNum || montoNum <= 0) { setError('El monto debe ser mayor a cero.'); return; }
     if (!categoria.trim()) { setError('Escribe una categoría o descripción.'); return; }
+    if (tipo === 'transferencia' && !fuente.trim()) { setError('Selecciona o escribe la cuenta origen.'); return; }
+    if (metodo === 'tarjeta' && !fuente.trim()) { setError('Selecciona o escribe la tarjeta.'); return; }
+    if (msiActivo && (!Number(meses) || Number(meses) < 2)) { setError('Los meses deben ser 2 o más.'); return; }
 
     setLoading(true);
-    const row = {
-      user_id:   userId,
-      tipo,
-      monto:     montoNum,
-      categoria: categoria.trim(),
-      metodo,
-      fecha,
-      estado:    tipo === 'pendiente' ? 'activo' : 'activo',
-      recurrente: 0,
-      moneda:    'MXN',
-      tipo_cambio: 1,
-      synced_at: new Date().toISOString()
-    };
+    const now = new Date().toISOString();
+    let rows;
+    if (msiActivo && tipo === 'gasto') {
+      const numMeses = Math.round(Number(meses));
+      const tasa = conIntereses ? Number(tasaInteres || 0) / 100 : 0;
+      const mensual = Number(((montoNum * (1 + tasa)) / numMeses).toFixed(2));
+      const [year, monthNum, day] = fecha.split('-').map(Number);
+      const grupoMsi = `msi-${Date.now()}`;
+      rows = Array.from({ length: numMeses }, (_, index) => {
+        const d = new Date(year, monthNum - 1 + index, day);
+        const cuotaFecha = d.toISOString().slice(0, 10);
+        return {
+          user_id: userId,
+          sync_id: uid(),
+          tipo: 'gasto',
+          monto: mensual,
+          categoria: `${categoria.trim()} (${index + 1}/${numMeses})`,
+          metodo: 'tarjeta',
+          subtipo: 'credito',
+          fuente: fuente.trim(),
+          destino: null,
+          fecha: cuotaFecha,
+          estado: 'activo',
+          recurrente: 0,
+          grupo_msi: grupoMsi,
+          moneda: 'MXN',
+          tipo_cambio: 1,
+          synced_at: now
+        };
+      });
+    } else {
+      rows = [{
+        user_id: userId,
+        sync_id: uid(),
+        tipo,
+        monto: montoNum,
+        categoria: categoria.trim(),
+        metodo: tipo === 'transferencia' ? 'transferencia' : metodo,
+        subtipo: metodo === 'tarjeta' ? subtipo : null,
+        fuente: (metodo === 'tarjeta' || tipo === 'transferencia') ? fuente.trim() : null,
+        destino: tipo === 'transferencia' ? (destino.trim() || null) : null,
+        fecha,
+        estado: 'activo',
+        recurrente: 0,
+        moneda: 'MXN',
+        tipo_cambio: 1,
+        synced_at: now
+      }];
+    }
 
-    const { error: err } = await supabase.from('movimientos').insert([row]);
+    if (metodo === 'tarjeta' || msiActivo) await ensureCard(fuente, msiActivo ? 'credito' : subtipo);
+    if (tipo === 'transferencia' && fuente) await ensureCard(fuente, 'debito');
+
+    const { error: err } = await supabase.from('movimientos').insert(rows);
     setLoading(false);
     if (err) { setError('Error al guardar. Intenta de nuevo.'); return; }
     onSave();
@@ -198,21 +277,63 @@ function MovementSheet({ tipo, userId, onSave, onClose }) {
             />
           </div>
 
-          {tipo !== 'pendiente' && (
+          <div className="pwa-field-row">
+            <div className="pwa-field">
+              <label>Mes</label>
+              <input type="month" value={month} onChange={e => handleMonthChange(e.target.value)} />
+            </div>
+
+            <div className="pwa-field">
+              <label>Fecha</label>
+              <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} />
+            </div>
+          </div>
+
+          {tipo !== 'pendiente' && tipo !== 'transferencia' && (
             <div className="pwa-field">
               <label>Método de pago</label>
               <select value={metodo} onChange={e => setMetodo(e.target.value)}>
                 <option value="efectivo">Efectivo</option>
                 <option value="tarjeta">Tarjeta</option>
-                <option value="transferencia">Transferencia</option>
               </select>
             </div>
           )}
 
-          <div className="pwa-field">
-            <label>Fecha</label>
-            <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} />
-          </div>
+          {metodo === 'tarjeta' && tipo !== 'transferencia' && (
+            <>
+              <div className="pwa-field">
+                <label>Tipo de tarjeta</label>
+                <select value={subtipo} onChange={e => { setSubtipo(e.target.value); setFuente(''); setMsiActivo(false); }}>
+                  <option value="debito">Débito</option>
+                  <option value="credito">Crédito</option>
+                </select>
+              </div>
+              <div className="pwa-field">
+                <label>Tarjeta</label>
+                <input list="pwa-cards" value={fuente} onChange={e => setFuente(e.target.value)} placeholder="BBVA, Nu, Hey..." />
+                <datalist id="pwa-cards">{cardOptions.map(c => <option key={c.sync_id || c.id || c.nombre} value={c.nombre} />)}</datalist>
+              </div>
+            </>
+          )}
+
+          {tipo === 'gasto' && metodo === 'tarjeta' && subtipo === 'credito' && (
+            <div className="pwa-msi-box">
+              <label className="pwa-check"><input type="checkbox" checked={msiActivo} onChange={e => setMsiActivo(e.target.checked)} /> Pago a meses</label>
+              {msiActivo && <>
+                <div className="pwa-field"><label>Meses</label><input type="number" min="2" max="60" value={meses} onChange={e => setMeses(e.target.value)} /></div>
+                <label className="pwa-check"><input type="checkbox" checked={conIntereses} onChange={e => setConIntereses(e.target.checked)} /> Con intereses</label>
+                {conIntereses && <div className="pwa-field"><label>Tasa %</label><input type="number" min="0" step="0.01" value={tasaInteres} onChange={e => setTasaInteres(e.target.value)} /></div>}
+              </>}
+            </div>
+          )}
+
+          {tipo === 'transferencia' && (
+            <>
+              <div className="pwa-field"><label>Origen</label><input list="pwa-transfer-cards" value={fuente} onChange={e => setFuente(e.target.value)} placeholder="Cuenta o tarjeta origen" /></div>
+              <div className="pwa-field"><label>Destino</label><input value={destino} onChange={e => setDestino(e.target.value)} placeholder="Cuenta destino" /></div>
+              <datalist id="pwa-transfer-cards">{cards.filter(c => c.tipo === 'debito').map(c => <option key={c.sync_id || c.id || c.nombre} value={c.nombre} />)}</datalist>
+            </>
+          )}
 
           {error && <p className="pwa-error">{error}</p>}
 
@@ -259,6 +380,8 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [movements, setMovements] = useState([]);
+  const [cards, setCards] = useState([]);
+  const [selectedMonth, setSelectedMonth] = useState(thisMonth());
   const [metrics, setMetrics] = useState({ ingresos: 0, gastos: 0, balance: 0 });
   const [activeSheet, setActiveSheet] = useState(null); // null | tipo | 'user'
   const [refreshKey, setRefreshKey] = useState(0);
@@ -278,7 +401,7 @@ export default function App() {
   // Cargar movimientos del mes actual
   const loadData = useCallback(async () => {
     if (!session?.user?.id) return;
-    const month = thisMonth();
+    const month = selectedMonth;
     const { data } = await supabase
       .from('movimientos')
       .select('*')
@@ -289,13 +412,21 @@ export default function App() {
       .order('fecha', { ascending: false })
       .limit(50);
 
+    const { data: cardData } = await supabase
+      .from('tarjetas')
+      .select('*')
+      .eq('user_id', session.user.id)
+      .is('deleted_at', null)
+      .order('nombre', { ascending: true });
+
     if (data) {
       setMovements(data);
       const ingresos  = data.filter(m => m.tipo === 'ingreso').reduce((s, m) => s + m.monto, 0);
       const gastos    = data.filter(m => m.tipo === 'gasto').reduce((s, m) => s + m.monto, 0);
       setMetrics({ ingresos, gastos, balance: ingresos - gastos });
     }
-  }, [session]);
+    if (cardData) setCards(cardData);
+  }, [session, selectedMonth]);
 
   useEffect(() => { loadData(); }, [loadData, refreshKey]);
 
@@ -307,7 +438,7 @@ export default function App() {
   if (loading) return <div className="pwa-shell"><div className="pwa-spinner" /></div>;
   if (!session) return <div className="pwa-shell"><AuthScreen onAuth={setSession} /></div>;
 
-  const month = new Date().toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+  const month = new Date(`${selectedMonth}-01T12:00:00`).toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
 
   return (
     <div className="pwa-shell">
@@ -315,6 +446,7 @@ export default function App() {
       <header className="pwa-header">
         <div>
           <div className="pwa-header-title">FluXor</div>
+          <input className="pwa-month-picker" type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} aria-label="Mes" />
           <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1, textTransform: 'capitalize' }}>{month}</div>
         </div>
         <div className="pwa-header-right">
@@ -384,6 +516,8 @@ export default function App() {
         <MovementSheet
           tipo={activeSheet}
           userId={session.user.id}
+          cards={cards}
+          selectedMonth={selectedMonth}
           onSave={handleSave}
           onClose={() => setActiveSheet(null)}
         />
