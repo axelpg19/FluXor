@@ -376,6 +376,23 @@ function UserSheet({ session, onClose, onSignOut }) {
 
 // ── App principal ─────────────────────────────────────────────────────────────
 
+// ── Periodo financiero (igual lógica que la app de escritorio) ────────────────
+function getFinancialPeriod(monthKey, cutoff) {
+  const [year, month] = monthKey.split('-').map(Number);
+  const safeCutoff = Math.max(1, Math.min(Number(cutoff || 1), 28));
+  if (safeCutoff === 1) {
+    return {
+      start: `${year}-${String(month).padStart(2,'0')}-01`,
+      end:   `${year}-${String(month).padStart(2,'0')}-${new Date(year, month, 0).getDate()}`
+    };
+  }
+  // Periodo: desde día de corte del mes anterior hasta (día de corte - 1) del mes actual
+  const startDate = new Date(year, month - 2, safeCutoff);
+  const endDate   = new Date(year, month - 1, safeCutoff - 1);
+  const fmt = d => d.toISOString().slice(0, 10);
+  return { start: fmt(startDate), end: fmt(endDate) };
+}
+
 export default function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -385,6 +402,7 @@ export default function App() {
   const [metrics, setMetrics] = useState({ ingresos: 0, gastos: 0, balance: 0 });
   const [activeSheet, setActiveSheet] = useState(null); // null | tipo | 'user'
   const [refreshKey, setRefreshKey] = useState(0);
+  const [cutoffDay, setCutoffDay] = useState(1); // día de corte leído de Supabase
 
   // Restaurar sesión
   useEffect(() => {
@@ -398,21 +416,35 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Cargar movimientos del mes actual
+  // Cargar movimientos del mes actual respetando el día de corte
   const loadData = useCallback(async () => {
     if (!session?.user?.id) return;
     const month = selectedMonth;
-    // Calcular el último día real del mes (evita el bug con meses de menos de 31 días)
-    const [y, m] = month.split('-').map(Number);
-    const lastDay = new Date(y, m, 0).getDate(); // día 0 del mes siguiente = último día del mes actual
-    const lastDate = `${month}-${String(lastDay).padStart(2, '0')}`;
+
+    // Leer día de corte de Supabase (una sola vez por sesión)
+    let activeCutoff = cutoffDay;
+    try {
+      const { data: cfg } = await supabase
+        .from('configuracion')
+        .select('valor')
+        .eq('user_id', session.user.id)
+        .eq('clave', 'dia_corte')
+        .single();
+      if (cfg?.valor) {
+        activeCutoff = Number(cfg.valor) || 1;
+        setCutoffDay(activeCutoff);
+      }
+    } catch { /* usa cutoffDay del estado */ }
+
+    const period = getFinancialPeriod(month, activeCutoff);
+
     const { data } = await supabase
       .from('movimientos')
       .select('*')
       .eq('user_id', session.user.id)
       .is('deleted_at', null)
-      .gte('fecha', `${month}-01`)
-      .lte('fecha', lastDate)
+      .gte('fecha', period.start)
+      .lte('fecha', period.end)
       .order('fecha', { ascending: false })
       .limit(50);
 
@@ -430,7 +462,7 @@ export default function App() {
       setMetrics({ ingresos, gastos, balance: ingresos - gastos });
     }
     if (cardData) setCards(cardData);
-  }, [session, selectedMonth]);
+  }, [session, selectedMonth, cutoffDay]);
 
   useEffect(() => { loadData(); }, [loadData, refreshKey]);
 
@@ -442,7 +474,17 @@ export default function App() {
   if (loading) return <div className="pwa-shell"><div className="pwa-spinner" /></div>;
   if (!session) return <div className="pwa-shell"><AuthScreen onAuth={setSession} /></div>;
 
-  const month = new Date(`${selectedMonth}-01T12:00:00`).toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+  const period = getFinancialPeriod(selectedMonth, cutoffDay);
+  // Etiqueta del periodo: si hay día de corte, muestra rango "25 abr – 25 may"
+  const month = (() => {
+    if (cutoffDay <= 1) {
+      return new Date(`${selectedMonth}-01T12:00:00`).toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+    }
+    const fmt = iso => new Date(`${iso}T12:00:00`).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' });
+    const [y, m] = selectedMonth.split('-').map(Number);
+    const labelYear = new Date(`${selectedMonth}-01T12:00:00`).toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+    return `${labelYear}  (${fmt(period.start)} – ${fmt(period.end)})`;
+  })();
 
   return (
     <div className="pwa-shell">
