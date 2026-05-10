@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from './supabase.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -419,32 +419,28 @@ export default function App() {
   }, []);
 
   // Cargar movimientos del mes actual respetando el día de corte
-  const cutoffLoadedRef = React.useRef(false);
-
   const loadData = useCallback(async () => {
     if (!session?.user?.id) return;
     const month = selectedMonth;
 
-    // Leer dia_corte una sola vez por sesión (aquí la sesión ya está activa)
-    if (!cutoffLoadedRef.current) {
-      cutoffLoadedRef.current = true;
-      try {
-        const { data: cfgData } = await supabase
-          .from('configuracion')
-          .select('valor')
-          .eq('user_id', session.user.id)
-          .eq('clave', 'dia_corte');
-        if (cfgData?.length > 0) {
-          const val = Number(cfgData[0].valor);
-          if (val >= 1 && val <= 28 && val !== cutoffDay) {
-            setCutoffDay(val);
-            return; // setCutoffDay triggera re-render → loadData corre de nuevo con el valor correcto
-          }
+    // Leer dia_corte directo de Supabase en cada carga (sesión ya activa aquí)
+    let activeCutoff = cutoffDay;
+    try {
+      const { data: cfgData } = await supabase
+        .from('configuracion')
+        .select('valor')
+        .eq('user_id', session.user.id)
+        .eq('clave', 'dia_corte');
+      if (cfgData?.length > 0) {
+        const val = Number(cfgData[0].valor);
+        if (val >= 1 && val <= 28) {
+          activeCutoff = val;
+          if (val !== cutoffDay) setCutoffDay(val);
         }
-      } catch { /* usa default */ }
-    }
+      }
+    } catch { /* usa cutoffDay del estado */ }
 
-    const period = getFinancialPeriod(month, cutoffDay);
+    const period = getFinancialPeriod(month, activeCutoff);
 
     const { data } = await supabase
       .from('movimientos')
