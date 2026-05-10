@@ -7,7 +7,8 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon-192.png', 'icon-512.png', 'icon-maskable.png', 'apple-touch-icon.png', 'logo-fluxor.png'],
+      injectRegister: 'auto',
+      includeAssets: ['favicon.ico', 'icon-192.png', 'icon-512.png', 'icon-maskable.png', 'apple-touch-icon.png', 'logo-fluxor.png'],
       manifest: {
         name: 'FluXor',
         short_name: 'FluXor',
@@ -18,24 +19,16 @@ export default defineConfig({
         orientation: 'any',
         start_url: '/',
         icons: [
-          { src: '/icon-192.png',    sizes: '192x192',  type: 'image/png', purpose: 'any' },
-          { src: '/icon-512.png',    sizes: '512x512',  type: 'image/png', purpose: 'any' },
-          { src: '/icon-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+          { src: '/icon-192.png',      sizes: '192x192',  type: 'image/png', purpose: 'any' },
+          { src: '/icon-512.png',      sizes: '512x512',  type: 'image/png', purpose: 'any' },
+          { src: '/icon-maskable.png', sizes: '512x512',  type: 'image/png', purpose: 'maskable' }
         ]
       },
       workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/vioyqhsbymxdsjzbgzhn\.supabase\.co\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'supabase-cache',
-              networkTimeoutSeconds: 5,
-              expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 }
-            }
-          }
-        ]
+        runtimeCaching: []
       }
     })
   ],
