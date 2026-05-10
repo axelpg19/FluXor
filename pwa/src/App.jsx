@@ -79,7 +79,23 @@ function AuthScreen({ onAuth }) {
 
   return (
     <div className="pwa-auth">
-      <div className="pwa-auth-logo">FluXor</div>
+      <div aria-hidden="true" style={{
+        position:'fixed', inset:0, zIndex:0, pointerEvents:'none', overflow:'hidden'
+      }}>
+        <div style={{
+          position:'absolute', width:400, height:400, borderRadius:'50%',
+          background:'radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 70%)',
+          top:'-100px', left:'-80px', animation:'orb-move 12s ease-in-out infinite'
+        }}/>
+        <div style={{
+          position:'absolute', width:300, height:300, borderRadius:'50%',
+          background:'radial-gradient(circle, rgba(139,92,246,0.12) 0%, transparent 70%)',
+          bottom:'5%', right:'-60px', animation:'orb-move 16s ease-in-out infinite reverse'
+        }}/>
+      </div>
+      <div className="pwa-auth-logo-wrap">
+        <img src="/logo-fluxor.png" alt="FluXor" className="pwa-auth-logo-img" />
+      </div>
       <p className="pwa-auth-sub">
         {mode === 'signin' ? 'Inicia sesión para sincronizar tus finanzas' :
          mode === 'signup' ? 'Crea tu cuenta gratuita de FluXor' :
@@ -490,6 +506,26 @@ export default function App() {
 
   return (
     <div className="pwa-shell">
+      {/* Animated background orbs */}
+      <div aria-hidden="true" style={{
+        position:'fixed', inset:0, zIndex:0, pointerEvents:'none', overflow:'hidden'
+      }}>
+        <div style={{
+          position:'absolute', width:340, height:340, borderRadius:'50%',
+          background:'radial-gradient(circle, rgba(99,102,241,0.13) 0%, transparent 70%)',
+          top:'-80px', left:'-60px', animation:'orb-move 12s ease-in-out infinite'
+        }}/>
+        <div style={{
+          position:'absolute', width:280, height:280, borderRadius:'50%',
+          background:'radial-gradient(circle, rgba(139,92,246,0.10) 0%, transparent 70%)',
+          bottom:'10%', right:'-60px', animation:'orb-move 15s ease-in-out infinite reverse'
+        }}/>
+        <div style={{
+          position:'absolute', width:200, height:200, borderRadius:'50%',
+          background:'radial-gradient(circle, rgba(59,130,246,0.08) 0%, transparent 70%)',
+          top:'45%', left:'30%', animation:'orb-move 18s ease-in-out infinite 3s'
+        }}/>
+      </div>
       {/* Header */}
       <header className="pwa-header">
         <div>

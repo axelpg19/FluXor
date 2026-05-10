@@ -1,6 +1,19 @@
 /* ── Reset y variables ─────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* ── Animated background ─────────────────────────────────────── */
+@keyframes bg-drift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@keyframes orb-move {
+  0%   { transform: translate(0, 0) scale(1); }
+  33%  { transform: translate(30px, -20px) scale(1.05); }
+  66%  { transform: translate(-20px, 15px) scale(0.97); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+
 :root {
   --bg:       #151515;
   --panel:    #1e1e1e;
@@ -40,6 +53,7 @@ html, body, #root {
 
 /* ── Header ────────────────────────────────────────────────── */
 .pwa-header {
+  position: relative; z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -308,11 +322,19 @@ html, body, #root {
   align-items: center; gap: 24px;
   padding: 40px 28px calc(var(--safe-bottom) + 40px);
   min-height: 100%;
+  position: relative; z-index: 1;
 }
-.pwa-auth-logo {
-  background: linear-gradient(135deg, #fff 40%, var(--accent));
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  font-size: 42px; font-weight: 800; letter-spacing: -0.04em;
+.pwa-auth-logo-wrap {
+  display: flex; align-items: center; justify-content: center;
+  animation: logo-float 3s ease-in-out infinite;
+}
+.pwa-auth-logo-img {
+  width: 240px; max-width: 80vw;
+  filter: drop-shadow(0 0 32px rgba(129,140,248,0.35));
+}
+@keyframes logo-float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-8px); }
 }
 .pwa-auth-sub { font-size: 14px; color: var(--muted); text-align: center; line-height: 1.5; }
 .pwa-auth-form { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 360px; }
