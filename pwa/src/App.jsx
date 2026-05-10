@@ -405,38 +405,44 @@ export default function App() {
   const [cutoffDay, setCutoffDay] = useState(1); // día de corte leído de Supabase
 
   // Cargar día de corte desde Supabase
-  async function loadCutoffDay(userId) {
-    try {
-      const { data, error } = await supabase
-        .from('configuracion')
-        .select('valor')
-        .eq('user_id', userId)
-        .eq('clave', 'dia_corte');
-      if (!error && data?.length > 0) {
-        const val = Number(data[0].valor);
-        if (val >= 1 && val <= 28) setCutoffDay(val);
-      }
-    } catch { /* usa default 1 */ }
-  }
-
   // Restaurar sesión
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
-      if (data.session?.user?.id) loadCutoffDay(data.session.user.id);
       setLoading(false);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => {
       setSession(s);
-      if (s?.user?.id) loadCutoffDay(s.user.id);
+
     });
     return () => subscription.unsubscribe();
   }, []);
 
   // Cargar movimientos del mes actual respetando el día de corte
+  const cutoffLoadedRef = React.useRef(false);
+
   const loadData = useCallback(async () => {
     if (!session?.user?.id) return;
     const month = selectedMonth;
+
+    // Leer dia_corte una sola vez por sesión (aquí la sesión ya está activa)
+    if (!cutoffLoadedRef.current) {
+      cutoffLoadedRef.current = true;
+      try {
+        const { data: cfgData } = await supabase
+          .from('configuracion')
+          .select('valor')
+          .eq('user_id', session.user.id)
+          .eq('clave', 'dia_corte');
+        if (cfgData?.length > 0) {
+          const val = Number(cfgData[0].valor);
+          if (val >= 1 && val <= 28 && val !== cutoffDay) {
+            setCutoffDay(val);
+            return; // setCutoffDay triggera re-render → loadData corre de nuevo con el valor correcto
+          }
+        }
+      } catch { /* usa default */ }
+    }
 
     const period = getFinancialPeriod(month, cutoffDay);
 
