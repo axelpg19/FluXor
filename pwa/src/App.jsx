@@ -423,24 +423,22 @@ export default function App() {
     if (!session?.user?.id) return;
     const month = selectedMonth;
 
-    // Leer dia_corte directo de Supabase en cada carga (sesión ya activa aquí)
-    let activeCutoff = cutoffDay;
-    try {
-      const { data: cfgData } = await supabase
-        .from('configuracion')
-        .select('valor')
-        .eq('user_id', session.user.id)
-        .eq('clave', 'dia_corte');
-      if (cfgData?.length > 0) {
-        const val = Number(cfgData[0].valor);
-        if (val >= 1 && val <= 28) {
-          activeCutoff = val;
-          if (val !== cutoffDay) setCutoffDay(val);
+    // Leer dia_corte via RPC (SECURITY DEFINER, evita problemas de RLS)
+    // Solo se lee una vez — después queda en estado y no vuelve a disparar
+    if (cutoffDay === 1) {
+      try {
+        const { data: rpcVal } = await supabase.rpc('get_dia_corte');
+        if (rpcVal != null) {
+          const val = Number(rpcVal);
+          if (val >= 2 && val <= 28) {
+            setCutoffDay(val);
+            return; // re-render automático con el valor correcto
+          }
         }
-      }
-    } catch { /* usa cutoffDay del estado */ }
+      } catch { /* usa default 1 */ }
+    }
 
-    const period = getFinancialPeriod(month, activeCutoff);
+    const period = getFinancialPeriod(month, cutoffDay);
 
     const { data } = await supabase
       .from('movimientos')
