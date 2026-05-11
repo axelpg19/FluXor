@@ -248,6 +248,83 @@ function AuthScreen({ onAuth }) {
 }
 
 
+// ── UserSheet — Panel de perfil/sesión ───────────────────────────────────────
+function UserSheet({ session, onClose, onSignOut }) {
+  const [loading, setLoading] = useState(false);
+
+  async function handleSignOut() {
+    setLoading(true);
+    await supabase.auth.signOut();
+    onSignOut();
+  }
+
+  const email = session?.user?.email || '';
+  const provider = session?.user?.app_metadata?.provider || 'email';
+  const providerLabel = { google: 'Google', github: 'GitHub', azure: 'Microsoft', email: 'Email' };
+
+  return (
+    <div className="pwa-sheet-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="pwa-sheet">
+        <div className="pwa-sheet-handle" />
+
+        <div style={{ display:'flex', flexDirection:'column', gap:20, padding:'8px 0' }}>
+          {/* Avatar + info */}
+          <div style={{ display:'flex', alignItems:'center', gap:14 }}>
+            <div style={{
+              width:52, height:52, borderRadius:'50%',
+              background:'linear-gradient(135deg,#818cf8,#c084fc)',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              fontSize:22, fontWeight:700, color:'#fff', flexShrink:0
+            }}>
+              {email.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <div style={{ fontWeight:600, fontSize:15 }}>{email}</div>
+              <div style={{ fontSize:12, color:'var(--muted)', marginTop:2 }}>
+                Cuenta {providerLabel[provider] || provider}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ height:1, background:'var(--border)' }} />
+
+          {/* Info de sesión */}
+          <div style={{ fontSize:13, color:'var(--muted)', lineHeight:1.6 }}>
+            <div>Tus datos se sincronizan automáticamente entre todos tus dispositivos.</div>
+          </div>
+
+          <div style={{ height:1, background:'var(--border)' }} />
+
+          {/* Cerrar sesión */}
+          <button
+            onClick={handleSignOut}
+            disabled={loading}
+            style={{
+              width:'100%', padding:'13px', borderRadius:12,
+              background:'rgba(239,68,68,0.12)', border:'1px solid rgba(239,68,68,0.25)',
+              color:'#f87171', fontSize:14, fontWeight:600, cursor:'pointer',
+              transition:'background 150ms'
+            }}
+          >
+            {loading ? 'Cerrando sesión…' : 'Cerrar sesión'}
+          </button>
+
+          <button
+            onClick={onClose}
+            style={{
+              width:'100%', padding:'11px', borderRadius:12,
+              background:'transparent', border:'1px solid var(--border)',
+              color:'var(--muted)', fontSize:14, cursor:'pointer'
+            }}
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Periodo financiero (igual lógica que la app de escritorio) ────────────────
 function getFinancialPeriod(monthKey, cutoff) {
   const [year, month] = monthKey.split('-').map(Number);
