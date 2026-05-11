@@ -242,6 +242,7 @@ function AuthScreen({ onAuth }) {
           </form>
         </div>
       )}
+      </div>{/* /pwa-auth-card */}
     </div>
   );
 }
