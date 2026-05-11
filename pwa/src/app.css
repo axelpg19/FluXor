@@ -336,9 +336,36 @@ html, body, #root {
   0%, 100% { transform: translateY(0px); }
   50%       { transform: translateY(-8px); }
 }
-.pwa-auth-sub { font-size: 14px; color: var(--muted); text-align: center; line-height: 1.5; }
+.pwa-auth-sub { font-size: 14px; color: var(--muted); text-align: center; line-height: 1.5; margin: 0; }
 .pwa-auth-form { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 360px; }
 .pwa-auth-toggle { font-size: 13px; color: var(--accent); background: none; border: none; cursor: pointer; text-align: center; }
+.pwa-auth-back {
+  background: none; border: none; color: var(--muted); font-size: 13px;
+  cursor: pointer; padding: 0; text-align: left;
+}
+.pwa-auth-back:hover { color: var(--text); }
+
+/* Botones OAuth */
+.pwa-oauth-btn {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%; padding: 13px 16px;
+  background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+  border-radius: 12px; cursor: pointer;
+  font-size: 14px; font-weight: 500; color: var(--text);
+  transition: background 150ms, border-color 150ms, transform 100ms;
+}
+.pwa-oauth-btn:hover { background: rgba(255,255,255,0.08); border-color: var(--accent); transform: translateY(-1px); }
+.pwa-oauth-btn:active { transform: translateY(0); }
+.pwa-oauth-email { color: var(--muted); }
+
+/* Divisor */
+.pwa-auth-divider {
+  display: flex; align-items: center; gap: 12px;
+  color: var(--muted); font-size: 12px;
+}
+.pwa-auth-divider::before, .pwa-auth-divider::after {
+  content: ''; flex: 1; height: 1px; background: var(--border);
+}
 
 /* ── Empty / loading ───────────────────────────────────────── */
 .pwa-empty { text-align: center; padding: 40px 20px; color: var(--muted); font-size: 14px; }
