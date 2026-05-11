@@ -321,8 +321,25 @@ html, body, #root {
   display: flex; flex-direction: column; justify-content: center;
   align-items: center; gap: 24px;
   padding: 40px 28px calc(var(--safe-bottom) + 40px);
-  min-height: 100%;
+  min-height: 100vh;
   position: relative; z-index: 1;
+  box-sizing: border-box;
+}
+
+/* En pantallas anchas (desktop/tablet), mostrar como tarjeta centrada */
+@media (min-width: 600px) {
+  .pwa-auth {
+    background: transparent;
+    align-items: center;
+    justify-content: center;
+  }
+  .pwa-auth > *:not([aria-hidden]) {
+    width: 100%;
+    max-width: 400px;
+  }
+  .pwa-auth-logo-img {
+    width: 200px !important;
+  }
 }
 .pwa-auth-logo-wrap {
   display: flex; align-items: center; justify-content: center;
@@ -339,11 +356,57 @@ html, body, #root {
 .pwa-auth-sub { font-size: 14px; color: var(--muted); text-align: center; line-height: 1.5; margin: 0; }
 .pwa-auth-form { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 360px; }
 .pwa-auth-toggle { font-size: 13px; color: var(--accent); background: none; border: none; cursor: pointer; text-align: center; }
+/* Card contenedor para desktop */
+.pwa-auth-card {
+  display: flex; flex-direction: column; gap: 22px;
+  width: 100%; max-width: 400px;
+  position: relative; z-index: 1;
+}
+
+@media (min-width: 600px) {
+  .pwa-auth-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 24px;
+    padding: 40px 36px;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+}
+
 .pwa-auth-back {
   background: none; border: none; color: var(--muted); font-size: 13px;
   cursor: pointer; padding: 0; text-align: left;
 }
 .pwa-auth-back:hover { color: var(--text); }
+
+/* Campos de formulario en auth */
+.pwa-field { display: flex; flex-direction: column; gap: 6px; }
+.pwa-field label { font-size: 12px; font-weight: 600; color: var(--muted); }
+.pwa-field input {
+  background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+  border-radius: 10px; color: var(--text); font-size: 15px;
+  padding: 12px 14px; transition: border-color 150ms, box-shadow 150ms;
+  width: 100%; box-sizing: border-box;
+}
+.pwa-field input:focus {
+  outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(129,140,248,0.15);
+}
+
+/* Botón submit en auth */
+.pwa-submit {
+  width: 100%; padding: 13px; border-radius: 12px;
+  background: var(--accent); color: #fff; border: none;
+  font-size: 15px; font-weight: 600; cursor: pointer;
+  transition: opacity 150ms, transform 100ms;
+}
+.pwa-submit:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
+.pwa-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Error/info inline en auth PWA */
+.pwa-error { font-size: 13px; margin: 0; padding: 10px 14px; border-radius: 8px; }
 
 /* Botones OAuth */
 .pwa-oauth-btn {

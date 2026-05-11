@@ -143,6 +143,7 @@ function AuthScreen({ onAuth }) {
     <div className="pwa-auth">
       {orbs}
 
+      <div className="pwa-auth-card">
       {/* Logo */}
       <div className="pwa-auth-logo-wrap">
         <img src="/logo-fluxor.png" alt="FluXor" className="pwa-auth-logo-img" />
@@ -245,6 +246,22 @@ function AuthScreen({ onAuth }) {
   );
 }
 
+
+// ── Periodo financiero (igual lógica que la app de escritorio) ────────────────
+function getFinancialPeriod(monthKey, cutoff) {
+  const [year, month] = monthKey.split('-').map(Number);
+  const safeCutoff = Math.max(1, Math.min(Number(cutoff || 1), 28));
+  if (safeCutoff === 1) {
+    return {
+      start: `${year}-${String(month).padStart(2,'0')}-01`,
+      end:   `${year}-${String(month).padStart(2,'0')}-${new Date(year, month, 0).getDate()}`
+    };
+  }
+  const startDate = new Date(year, month - 2, safeCutoff);
+  const endDate   = new Date(year, month - 1, safeCutoff - 1);
+  const fmt = d => d.toISOString().slice(0, 10);
+  return { start: fmt(startDate), end: fmt(endDate) };
+}
 
 export default function App() {
   const [session, setSession] = useState(null);
