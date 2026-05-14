@@ -325,6 +325,212 @@ function UserSheet({ session, onClose, onSignOut }) {
   );
 }
 
+// ── MovementSheet — Formulario de movimiento en PWA ─────────────────────────
+const CURRENCIES_PWA = [
+  { code: 'MXN', symbol: '$',  flag: '🇲🇽' },
+  { code: 'USD', symbol: '$',  flag: '🇺🇸' },
+  { code: 'EUR', symbol: '€',  flag: '🇪🇺' },
+  { code: 'GBP', symbol: '£',  flag: '🇬🇧' },
+  { code: 'CAD', symbol: '$',  flag: '🇨🇦' },
+  { code: 'JPY', symbol: '¥',  flag: '🇯🇵' },
+  { code: 'BRL', symbol: 'R$', flag: '🇧🇷' },
+  { code: 'ARS', symbol: '$',  flag: '🇦🇷' },
+];
+
+function MovementSheet({ tipo, userId, cards = [], selectedMonth, onSave, onClose }) {
+  const today = () => new Date().toISOString().slice(0, 10);
+  const [form, setForm] = useState({
+    monto: '', categoria: '', metodo: 'efectivo',
+    fuente: '', fecha: today(), moneda: 'MXN', tipo_cambio: ''
+  });
+  const [saving, setSaving]         = useState(false);
+  const [error, setError]           = useState('');
+  const [fetchingRate, setFetchingRate] = useState(false);
+  const [showCurrencies, setShowCurrencies] = useState(false);
+  const prevMoneda = useRef('MXN');
+
+  const esMXN = form.moneda === 'MXN';
+  const tcNum = esMXN ? 1 : (Number(form.tipo_cambio) || 0);
+  const montoNum = Number(form.monto) || 0;
+  const montoMXN = esMXN ? montoNum : montoNum * tcNum;
+  const showPreview = !esMXN && montoNum > 0 && tcNum > 0;
+
+  const creditCards = cards.filter(c => c.tipo === 'credito');
+  const debitCards  = cards.filter(c => c.tipo === 'debito');
+  const availableCards = form.metodo === 'tarjeta'
+    ? [...creditCards, ...debitCards]
+    : [];
+
+  const typeLabel = { gasto: 'Gasto', ingreso: 'Ingreso', pendiente: 'Pendiente', transferencia: 'Transferencia' };
+
+  // Auto-fetch tipo de cambio
+  useEffect(() => {
+    if (esMXN || form.moneda === prevMoneda.current) return;
+    prevMoneda.current = form.moneda;
+    setFetchingRate(true);
+    supabase.functions.invoke('get-exchange-rate', {
+      body: { from: form.moneda, to: 'MXN' }
+    }).then(({ data }) => {
+      setFetchingRate(false);
+      if (data?.rate) setForm(f => ({ ...f, tipo_cambio: String(Number(data.rate).toFixed(4)) }));
+    }).catch(async () => {
+      // Fallback: Frankfurter API directamente
+      try {
+        const res = await fetch(`https://api.frankfurter.app/latest?from=${form.moneda}&to=MXN`);
+        const json = await res.json();
+        if (json.rates?.MXN) setForm(f => ({ ...f, tipo_cambio: String(Number(json.rates.MXN).toFixed(4)) }));
+      } catch { /* sin internet */ }
+      setFetchingRate(false);
+    });
+  }, [form.moneda, esMXN]);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!form.monto || Number(form.monto) <= 0) { setError('Ingresa un monto válido.'); return; }
+    if (!form.categoria.trim()) { setError('Ingresa una categoría.'); return; }
+    if (!esMXN && !form.tipo_cambio) { setError('Ingresa el tipo de cambio.'); return; }
+    setSaving(true); setError('');
+
+    const montoFinal = esMXN ? Number(form.monto) : Math.round(montoMXN * 100) / 100;
+
+    const { error: err } = await supabase.from('movimientos').insert({
+      user_id:        userId,
+      tipo,
+      monto:          montoFinal,
+      categoria:      form.categoria.trim(),
+      metodo:         form.metodo,
+      fuente:         form.fuente || null,
+      fecha:          form.fecha,
+      estado:         'activo',
+      recurrente:     0,
+      moneda:         form.moneda,
+      monto_original: esMXN ? null : Number(form.monto),
+      tipo_cambio:    esMXN ? 1 : Number(form.tipo_cambio),
+      synced_at:      new Date().toISOString(),
+      sync_id:        crypto.randomUUID(),
+    });
+
+    setSaving(false);
+    if (err) { setError('Error al guardar. Intenta de nuevo.'); return; }
+    onSave();
+  }
+
+  const selectedCurrency = CURRENCIES_PWA.find(c => c.code === form.moneda) || CURRENCIES_PWA[0];
+
+  return (
+    <div className="pwa-sheet-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="pwa-sheet">
+        <div className="pwa-sheet-handle" />
+        <div className="pwa-sheet-header">
+          <h3 className="pwa-sheet-title">Nuevo {typeLabel[tipo]}</h3>
+          <button className="pwa-sheet-close" onClick={onClose}>✕</button>
+        </div>
+
+        <form onSubmit={handleSubmit} style={{ display:'flex', flexDirection:'column', gap:14 }}>
+
+          {/* Moneda + Monto */}
+          <div style={{ display:'flex', gap:10, alignItems:'flex-end' }}>
+            <div style={{ flex:'none' }}>
+              <label style={{ fontSize:12, fontWeight:600, color:'var(--muted)', display:'block', marginBottom:6 }}>Moneda</label>
+              <button type="button" className="pwa-currency-btn" onClick={() => setShowCurrencies(s => !s)}>
+                <span>{selectedCurrency.flag}</span>
+                <span>{selectedCurrency.code}</span>
+                <span style={{ fontSize:10, color:'var(--muted)' }}>▾</span>
+              </button>
+              {showCurrencies && (
+                <div className="pwa-currency-dropdown">
+                  {CURRENCIES_PWA.map(c => (
+                    <button key={c.code} type="button"
+                      className={`pwa-currency-option ${c.code === form.moneda ? 'active' : ''}`}
+                      onClick={() => { setForm(f => ({ ...f, moneda: c.code, tipo_cambio: '' })); prevMoneda.current = ''; setShowCurrencies(false); }}>
+                      {c.flag} {c.code} <span style={{ color:'var(--muted)', fontSize:12 }}>{c.symbol}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div style={{ flex:1 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:'var(--muted)', display:'block', marginBottom:6 }}>
+                Monto {esMXN ? '(MXN)' : `(${form.moneda})`}
+              </label>
+              <input className="pwa-input" type="number" min="0" step="0.01"
+                value={form.monto} onChange={e => setForm(f => ({ ...f, monto: e.target.value }))}
+                placeholder="0.00" required />
+            </div>
+          </div>
+
+          {/* Tipo de cambio */}
+          {!esMXN && (
+            <div>
+              <label style={{ fontSize:12, fontWeight:600, color:'var(--muted)', display:'block', marginBottom:6 }}>
+                Tipo de cambio (1 {form.moneda} = ? MXN)
+                {fetchingRate && <span style={{ color:'var(--accent)', marginLeft:6, fontSize:11 }}> ⟳ Consultando…</span>}
+              </label>
+              <input className="pwa-input" type="number" min="0" step="0.0001"
+                value={form.tipo_cambio} onChange={e => setForm(f => ({ ...f, tipo_cambio: e.target.value }))}
+                placeholder={fetchingRate ? 'Obteniendo…' : 'Ej: 17.25'}
+                disabled={fetchingRate} required />
+              {showPreview && (
+                <p style={{ fontSize:12, color:'var(--accent)', margin:'6px 0 0' }}>
+                  ≈ {MXN(montoMXN)} MXN
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Categoría */}
+          <div>
+            <label style={{ fontSize:12, fontWeight:600, color:'var(--muted)', display:'block', marginBottom:6 }}>Categoría</label>
+            <input className="pwa-input" type="text" value={form.categoria}
+              onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))}
+              placeholder="Ej: Comida, Sueldo, Netflix…" required />
+          </div>
+
+          {/* Método */}
+          <div>
+            <label style={{ fontSize:12, fontWeight:600, color:'var(--muted)', display:'block', marginBottom:6 }}>Método de pago</label>
+            <div style={{ display:'flex', gap:8 }}>
+              {['efectivo','tarjeta'].map(m => (
+                <button key={m} type="button"
+                  className={`pwa-method-btn ${form.metodo === m ? 'active' : ''}`}
+                  onClick={() => setForm(f => ({ ...f, metodo: m, fuente: '' }))}>
+                  {m === 'efectivo' ? '💵 Efectivo' : '💳 Tarjeta'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Tarjeta */}
+          {form.metodo === 'tarjeta' && availableCards.length > 0 && (
+            <div>
+              <label style={{ fontSize:12, fontWeight:600, color:'var(--muted)', display:'block', marginBottom:6 }}>Tarjeta</label>
+              <select className="pwa-input" value={form.fuente} onChange={e => setForm(f => ({ ...f, fuente: e.target.value }))}>
+                <option value="">Sin especificar</option>
+                {availableCards.map(c => (
+                  <option key={c.id || c.nombre} value={c.nombre}>{c.nombre} ({c.tipo})</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Fecha */}
+          <div>
+            <label style={{ fontSize:12, fontWeight:600, color:'var(--muted)', display:'block', marginBottom:6 }}>Fecha</label>
+            <input className="pwa-input" type="date" value={form.fecha}
+              onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))} required />
+          </div>
+
+          {error && <p style={{ color:'var(--red,#f87171)', fontSize:13, margin:0 }}>{error}</p>}
+
+          <button type="submit" className="pwa-submit" disabled={saving} style={{ marginTop:4 }}>
+            {saving ? 'Guardando…' : `Agregar ${typeLabel[tipo]}`}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ── Periodo financiero (igual lógica que la app de escritorio) ────────────────
 function getFinancialPeriod(monthKey, cutoff) {
   const [year, month] = monthKey.split('-').map(Number);

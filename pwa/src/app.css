@@ -356,6 +356,61 @@ html, body, #root {
 .pwa-auth-sub { font-size: 14px; color: var(--muted); text-align: center; line-height: 1.5; margin: 0; }
 .pwa-auth-form { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 360px; }
 .pwa-auth-toggle { font-size: 13px; color: var(--accent); background: none; border: none; cursor: pointer; text-align: center; }
+/* ── PWA Movement Form Styles ────────────────────────────────────────────────── */
+.pwa-input {
+  width: 100%; padding: 12px 14px; border-radius: 10px;
+  background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+  color: var(--text); font-size: 15px; box-sizing: border-box;
+  transition: border-color 150ms;
+}
+.pwa-input:focus { outline: none; border-color: var(--accent); }
+.pwa-input option { background: var(--panel); }
+
+.pwa-method-btn {
+  flex: 1; padding: 10px; border-radius: 10px;
+  background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+  color: var(--muted); font-size: 13px; cursor: pointer;
+  transition: all 150ms;
+}
+.pwa-method-btn.active {
+  background: rgba(129,140,248,0.15); border-color: var(--accent); color: var(--text);
+}
+
+.pwa-sheet-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 4px;
+}
+.pwa-sheet-close {
+  background: none; border: none; color: var(--muted);
+  font-size: 18px; cursor: pointer; padding: 4px 8px;
+}
+
+/* Selector de moneda en PWA */
+.pwa-currency-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 10px 12px; background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border); border-radius: 10px;
+  color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: border-color 150ms;
+  position: relative;
+}
+.pwa-currency-btn:hover { border-color: var(--accent); }
+.pwa-currency-dropdown {
+  position: absolute; z-index: 100; left: 0; top: calc(100% + 4px);
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  width: 160px; overflow: hidden;
+  animation: ob-slide-up 150ms ease;
+}
+.pwa-currency-option {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; padding: 10px 14px; border: none;
+  background: none; color: var(--text); font-size: 13px;
+  cursor: pointer; transition: background 100ms;
+}
+.pwa-currency-option:hover { background: rgba(255,255,255,0.06); }
+.pwa-currency-option.active { background: rgba(129,140,248,0.15); color: var(--accent); }
+
 /* Card contenedor para desktop */
 .pwa-auth-card {
   display: flex; flex-direction: column; gap: 22px;
