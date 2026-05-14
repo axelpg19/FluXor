@@ -327,14 +327,14 @@ function UserSheet({ session, onClose, onSignOut }) {
 
 // ── MovementSheet — Formulario de movimiento en PWA ─────────────────────────
 const CURRENCIES_PWA = [
-  { code: 'MXN', symbol: '$',  flag: '🇲🇽' },
-  { code: 'USD', symbol: '$',  flag: '🇺🇸' },
-  { code: 'EUR', symbol: '€',  flag: '🇪🇺' },
-  { code: 'GBP', symbol: '£',  flag: '🇬🇧' },
-  { code: 'CAD', symbol: '$',  flag: '🇨🇦' },
-  { code: 'JPY', symbol: '¥',  flag: '🇯🇵' },
-  { code: 'BRL', symbol: 'R$', flag: '🇧🇷' },
-  { code: 'ARS', symbol: '$',  flag: '🇦🇷' },
+  { code: 'MXN', symbol: '$'  },
+  { code: 'USD', symbol: '$'  },
+  { code: 'EUR', symbol: '€'  },
+  { code: 'GBP', symbol: '£'  },
+  { code: 'CAD', symbol: '$'  },
+  { code: 'JPY', symbol: '¥'  },
+  { code: 'BRL', symbol: 'R$' },
+  { code: 'ARS', symbol: '$'  },
 ];
 
 function MovementSheet({ tipo, userId, cards = [], selectedMonth, onSave, onClose }) {
@@ -430,12 +430,12 @@ function MovementSheet({ tipo, userId, cards = [], selectedMonth, onSave, onClos
 
           {/* Moneda + Monto */}
           <div style={{ display:'flex', gap:10, alignItems:'flex-end' }}>
-            <div style={{ flex:'none' }}>
+            <div style={{ flex:'none', position:'relative' }}>
               <label style={{ fontSize:12, fontWeight:600, color:'var(--muted)', display:'block', marginBottom:6 }}>Moneda</label>
               <button type="button" className="pwa-currency-btn" onClick={() => setShowCurrencies(s => !s)}>
-                <span>{selectedCurrency.flag}</span>
-                <span>{selectedCurrency.code}</span>
-                <span style={{ fontSize:10, color:'var(--muted)' }}>▾</span>
+                <span style={{ fontWeight:700 }}>{selectedCurrency.code}</span>
+                <span style={{ color:'var(--muted)', fontSize:11 }}>{selectedCurrency.symbol}</span>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9"/></svg>
               </button>
               {showCurrencies && (
                 <div className="pwa-currency-dropdown">
@@ -443,7 +443,8 @@ function MovementSheet({ tipo, userId, cards = [], selectedMonth, onSave, onClos
                     <button key={c.code} type="button"
                       className={`pwa-currency-option ${c.code === form.moneda ? 'active' : ''}`}
                       onClick={() => { setForm(f => ({ ...f, moneda: c.code, tipo_cambio: '' })); prevMoneda.current = ''; setShowCurrencies(false); }}>
-                      {c.flag} {c.code} <span style={{ color:'var(--muted)', fontSize:12 }}>{c.symbol}</span>
+                      <span style={{ fontWeight:700 }}>{c.code}</span>
+                      <span style={{ color:'var(--muted)', fontSize:12 }}>{c.symbol}</span>
                     </button>
                   ))}
                 </div>
@@ -494,7 +495,7 @@ function MovementSheet({ tipo, userId, cards = [], selectedMonth, onSave, onClos
                 <button key={m} type="button"
                   className={`pwa-method-btn ${form.metodo === m ? 'active' : ''}`}
                   onClick={() => setForm(f => ({ ...f, metodo: m, fuente: '' }))}>
-                  {m === 'efectivo' ? '💵 Efectivo' : '💳 Tarjeta'}
+                  {m === 'efectivo' ? 'Efectivo' : 'Tarjeta'}
                 </button>
               ))}
             </div>

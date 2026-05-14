@@ -386,30 +386,36 @@ html, body, #root {
 }
 
 /* Selector de moneda en PWA */
+.pwa-currency-wrap { position: relative; display: inline-block; }
 .pwa-currency-btn {
   display: flex; align-items: center; gap: 6px;
   padding: 10px 12px; background: rgba(255,255,255,0.05);
   border: 1px solid var(--border); border-radius: 10px;
   color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer;
-  transition: border-color 150ms;
-  position: relative;
+  transition: border-color 150ms; white-space: nowrap;
 }
 .pwa-currency-btn:hover { border-color: var(--accent); }
+.pwa-currency-code { font-weight: 700; letter-spacing: 0.03em; }
+.pwa-currency-sym  { color: var(--muted); font-size: 11px; }
 .pwa-currency-dropdown {
-  position: absolute; z-index: 100; left: 0; top: calc(100% + 4px);
+  position: absolute; z-index: 300; left: 0; top: calc(100% + 6px);
   background: var(--panel); border: 1px solid var(--border);
-  border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-  width: 160px; overflow: hidden;
+  border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  width: 130px; overflow: hidden;
   animation: ob-slide-up 150ms ease;
 }
 .pwa-currency-option {
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; justify-content: space-between;
   width: 100%; padding: 10px 14px; border: none;
   background: none; color: var(--text); font-size: 13px;
-  cursor: pointer; transition: background 100ms;
+  cursor: pointer; transition: background 100ms; box-sizing: border-box;
 }
 .pwa-currency-option:hover { background: rgba(255,255,255,0.06); }
 .pwa-currency-option.active { background: rgba(129,140,248,0.15); color: var(--accent); }
+.pwa-currency-opt-code { font-weight: 700; }
+.pwa-currency-opt-sym  { color: var(--muted); font-size: 12px; }
+.currency-btn-symbol { font-size: 13px; font-weight: 700; color: var(--accent); }
+.currency-opt-sym { font-size: 13px; font-weight: 700; color: var(--accent); min-width: 20px; }
 
 /* Card contenedor para desktop */
 .pwa-auth-card {
