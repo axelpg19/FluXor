@@ -734,28 +734,40 @@ export default function App() {
   // Cargar día de corte desde Supabase
   // Restaurar sesión + detectar token de recovery en la URL
   useEffect(() => {
-    // Detectar recovery ANTES de cualquier render para evitar flash de AuthScreen
-    const hash = window.location.hash || '';
-    const isRecovery = hash.includes('type=recovery');
+    // Detectar recovery desde hash o desde la ruta /auth/callback
+    // Supabase puede entregar el token en el hash o en query params según config
+    const hash     = window.location.hash || '';
+    const search   = window.location.search || '';
+    const pathname = window.location.pathname || '';
+
+    // Parsear tanto hash (#access_token=...) como query (?access_token=...)
+    const rawParams = hash.replace('#', '') || search.replace('?', '');
+    const params    = new URLSearchParams(rawParams);
+    const tokenType   = params.get('type');
+    const accessToken = params.get('access_token');
+
+    const isRecovery = tokenType === 'recovery' && !!accessToken;
 
     if (isRecovery) {
-      // Procesar el token del hash manualmente
-      const params = new URLSearchParams(hash.replace('#', ''));
-      const accessToken  = params.get('access_token');
       const refreshToken = params.get('refresh_token') || '';
-      if (accessToken) {
-        supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
-          .then(({ data }) => {
-            if (data.session) {
-              setSession(data.session);
-              setRecoveryMode(true);
-            }
-            setLoading(false);
-            window.history.replaceState(null, '', window.location.pathname);
-          })
-          .catch(() => setLoading(false));
-        return; // No ejecutar el flujo normal
-      }
+      supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+        .then(({ data, error }) => {
+          if (!error && data.session) {
+            setSession(data.session);
+            setRecoveryMode(true);
+          }
+          setLoading(false);
+          // Limpiar URL — reemplazar /auth/callback por /
+          window.history.replaceState(null, '', '/');
+        })
+        .catch(() => setLoading(false));
+      // No continuar con el flujo normal
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
+        if (event === 'PASSWORD_RECOVERY') { setSession(s); setRecoveryMode(true); }
+        else if (event === 'SIGNED_IN' && recoveryMode) { /* mantener recoveryMode */ }
+        else setSession(s);
+      });
+      return () => subscription.unsubscribe();
     }
 
     // Flujo normal: restaurar sesión existente
@@ -769,7 +781,7 @@ export default function App() {
         setSession(s);
         setRecoveryMode(true);
         setLoading(false);
-        window.history.replaceState(null, '', window.location.pathname);
+        window.history.replaceState(null, '', '/');
       } else {
         setSession(s);
       }
