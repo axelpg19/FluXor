@@ -65,6 +65,169 @@ function IconMail() {
   );
 }
 
+// ── Validación de contraseña segura ──────────────────────────────────────────
+function getPasswordStrength(pwd) {
+  if (!pwd) return { score: 0, label: '', color: '' };
+  let score = 0;
+  if (pwd.length >= 8)  score++;
+  if (pwd.length >= 12) score++;
+  if (/[A-Z]/.test(pwd)) score++;
+  if (/[0-9]/.test(pwd)) score++;
+  if (/[^A-Za-z0-9]/.test(pwd)) score++;
+
+  const levels = [
+    { score: 0, label: '',          color: 'transparent' },
+    { score: 1, label: 'Muy débil', color: '#ef4444' },
+    { score: 2, label: 'Débil',     color: '#f97316' },
+    { score: 3, label: 'Regular',   color: '#eab308' },
+    { score: 4, label: 'Fuerte',    color: '#22c55e' },
+    { score: 5, label: 'Muy fuerte',color: '#10b981' },
+  ];
+  return levels[Math.min(score, 5)];
+}
+
+function PasswordStrengthBar({ password }) {
+  const { score, label, color } = getPasswordStrength(password);
+  if (!password) return null;
+  return (
+    <div style={{ marginTop: 6 }}>
+      <div style={{ display:'flex', gap:3, marginBottom:4 }}>
+        {[1,2,3,4,5].map(i => (
+          <div key={i} style={{
+            flex:1, height:3, borderRadius:2,
+            background: i <= score ? color : 'var(--border)',
+            transition: 'background 300ms'
+          }} />
+        ))}
+      </div>
+      {label && <p style={{ fontSize:11, color, margin:0 }}>{label}</p>}
+    </div>
+  );
+}
+
+function validatePassword(pwd) {
+  const errors = [];
+  if (pwd.length < 8)           errors.push('Mínimo 8 caracteres');
+  if (!/[A-Z]/.test(pwd))       errors.push('Al menos una mayúscula');
+  if (!/[0-9]/.test(pwd))       errors.push('Al menos un número');
+  return errors;
+}
+
+// ── ResetPasswordScreen — nueva contraseña desde el link del email ─────────
+function ResetPasswordScreen({ onDone }) {
+  const [password, setPassword]   = useState('');
+  const [confirm, setConfirm]     = useState('');
+  const [loading, setLoading]     = useState(false);
+  const [msg, setMsg]             = useState('');
+  const [isError, setIsError]     = useState(false);
+  const [success, setSuccess]     = useState(false);
+
+  const strength  = getPasswordStrength(password);
+  const errors    = validatePassword(password);
+  const mismatch  = confirm && password !== confirm;
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (errors.length) { setMsg(errors[0]); setIsError(true); return; }
+    if (password !== confirm) { setMsg('Las contraseñas no coinciden.'); setIsError(true); return; }
+    setLoading(true); setMsg('');
+    const { error } = await supabase.auth.updateUser({ password });
+    setLoading(false);
+    if (error) { setMsg(error.message || 'Error al actualizar. Intenta de nuevo.'); setIsError(true); }
+    else { setSuccess(true); }
+  }
+
+  const orbs = (
+    <div aria-hidden="true" style={{ position:'fixed', inset:0, zIndex:0, pointerEvents:'none', overflow:'hidden' }}>
+      <div style={{ position:'absolute', width:400, height:400, borderRadius:'50%', background:'radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 70%)', top:'-100px', left:'-80px', animation:'orb-move 12s ease-in-out infinite' }}/>
+      <div style={{ position:'absolute', width:300, height:300, borderRadius:'50%', background:'radial-gradient(circle, rgba(139,92,246,0.12) 0%, transparent 70%)', bottom:'5%', right:'-60px', animation:'orb-move 16s ease-in-out infinite reverse' }}/>
+    </div>
+  );
+
+  return (
+    <div className="pwa-auth">
+      {orbs}
+      <div className="pwa-auth-card">
+        <div className="pwa-auth-logo-wrap">
+          <img src="/logo-fluxor.png" alt="FluXor" className="pwa-auth-logo-img" />
+        </div>
+
+        {success ? (
+          <div style={{ textAlign:'center', display:'flex', flexDirection:'column', gap:16, alignItems:'center' }}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+              <polyline points="22 4 12 14.01 9 11.01"/>
+            </svg>
+            <div>
+              <p style={{ fontSize:17, fontWeight:700, margin:'0 0 8px' }}>Contraseña actualizada</p>
+              <p style={{ fontSize:13, color:'var(--muted)', margin:0 }}>Tu contraseña se cambió correctamente.</p>
+            </div>
+            <button className="pwa-submit" onClick={onDone} style={{ width:'100%' }}>
+              Ir a FluXor
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="auth-heading" style={{ textAlign:'center' }}>
+              <h2 style={{ margin:'0 0 6px', fontSize:20, fontWeight:700 }}>Nueva contraseña</h2>
+              <p style={{ margin:0, fontSize:13, color:'var(--muted)' }}>Crea una contraseña segura para tu cuenta</p>
+            </div>
+
+            <form onSubmit={handleSubmit} style={{ display:'flex', flexDirection:'column', gap:16 }}>
+              <div className="pwa-field">
+                <label>Nueva contraseña</label>
+                <input
+                  className="pwa-input"
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="Mínimo 8 caracteres"
+                  autoFocus
+                />
+                <PasswordStrengthBar password={password} />
+                {errors.length > 0 && password && (
+                  <p style={{ fontSize:11, color:'var(--muted)', margin:'4px 0 0' }}>
+                    Necesitas: {errors.join(' · ')}
+                  </p>
+                )}
+              </div>
+
+              <div className="pwa-field">
+                <label>Confirmar contraseña</label>
+                <input
+                  className="pwa-input"
+                  type="password"
+                  value={confirm}
+                  onChange={e => setConfirm(e.target.value)}
+                  placeholder="Repite tu contraseña"
+                  style={mismatch ? { borderColor:'#ef4444' } : {}}
+                />
+                {mismatch && <p style={{ fontSize:11, color:'#ef4444', margin:'4px 0 0' }}>Las contraseñas no coinciden</p>}
+              </div>
+
+              {msg && (
+                <p style={{
+                  fontSize:13, margin:0, padding:'10px 14px', borderRadius:8,
+                  color: isError ? '#f87171' : '#22c55e',
+                  background: isError ? 'rgba(248,113,113,0.1)' : 'rgba(34,197,94,0.1)'
+                }}>{msg}</p>
+              )}
+
+              <button
+                type="submit"
+                className="pwa-submit"
+                disabled={loading || errors.length > 0 || mismatch || !confirm}
+              >
+                {loading ? 'Actualizando…' : 'Cambiar contraseña'}
+              </button>
+            </form>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function AuthScreen({ onAuth }) {
   const [mode, setMode]         = useState('main'); // 'main'|'email'|'signup'|'forgot'|'oauth-pending'
   const [email, setEmail]       = useState('');
@@ -101,7 +264,8 @@ function AuthScreen({ onAuth }) {
 
   async function handleSignUp(e) {
     e.preventDefault(); reset();
-    if (password.length < 8) { showMsg('Mínimo 8 caracteres en la contraseña.', true); return; }
+    const pwdErrors = validatePassword(password);
+    if (pwdErrors.length) { showMsg(pwdErrors[0], true); return; }
     setLoading(true);
     const { data, error } = await supabase.auth.signUp({ email, password });
     setLoading(false);
@@ -217,8 +381,14 @@ function AuthScreen({ onAuth }) {
               <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="tu@email.com" autoComplete="email" required />
             </div>
             <div className="pwa-field">
-              <label>Contraseña (mín. 8 caracteres)</label>
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" required />
+              <label>Contraseña</label>
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Mínimo 8 caracteres" autoComplete="new-password" required />
+              <PasswordStrengthBar password={password} />
+              {password && validatePassword(password).length > 0 && (
+                <p style={{ fontSize:11, color:'var(--muted)', margin:'4px 0 0' }}>
+                  Necesitas: {validatePassword(password).join(' · ')}
+                </p>
+              )}
             </div>
             {msg && <p className="pwa-error" style={{ color: isError ? 'var(--red)' : 'var(--green)' }}>{msg}</p>}
             <button type="submit" className="pwa-submit" disabled={loading}>{loading ? 'Creando cuenta…' : 'Crear cuenta'}</button>
@@ -558,17 +728,34 @@ export default function App() {
   const [activeSheet, setActiveSheet] = useState(null); // null | tipo | 'user'
   const [refreshKey, setRefreshKey] = useState(0);
   const [cutoffDay, setCutoffDay] = useState(1); // día de corte leído de Supabase
+  const [recoveryMode, setRecoveryMode] = useState(false); // true cuando viene del link de reset
 
   // Cargar día de corte desde Supabase
-  // Restaurar sesión
+  // Restaurar sesión + detectar token de recovery en la URL
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setLoading(false);
-    });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => {
-      setSession(s);
+    // Detectar si venimos del link de "Restablecer contraseña"
+    const hash = window.location.hash;
+    if (hash && hash.includes('type=recovery')) {
+      // Supabase pone el access_token en el hash — lo procesamos
+      supabase.auth.getSession().then(({ data }) => {
+        if (data.session) {
+          setSession(data.session);
+          setRecoveryMode(true); // mostrar formulario de nueva contraseña
+        }
+        setLoading(false);
+      });
+    } else {
+      supabase.auth.getSession().then(({ data }) => {
+        setSession(data.session);
+        setLoading(false);
+      });
+    }
 
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
+      setSession(s);
+      if (event === 'PASSWORD_RECOVERY') {
+        setRecoveryMode(true);
+      }
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -630,6 +817,17 @@ export default function App() {
 
   if (loading) return <div className="pwa-shell"><div className="pwa-spinner" /></div>;
   if (!session) return <div className="pwa-shell"><AuthScreen onAuth={setSession} /></div>;
+  if (recoveryMode) return (
+    <div className="pwa-shell">
+      <ResetPasswordScreen
+        onDone={() => {
+          setRecoveryMode(false);
+          // Limpiar el hash de la URL
+          window.history.replaceState(null, '', window.location.pathname);
+        }}
+      />
+    </div>
+  );
 
   const period = getFinancialPeriod(selectedMonth, cutoffDay);
   // Etiqueta del periodo: si hay día de corte, muestra rango "25 abr – 25 may"
