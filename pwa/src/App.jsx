@@ -292,7 +292,9 @@ function AuthScreen({ onAuth }) {
     e.preventDefault(); reset();
     setLoading(true);
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin
+      // La PWA ya sabe procesar el callback de recovery en esta ruta.
+      // Mantenerlo explícito evita que el enlace vuelva al login normal.
+      redirectTo: `${window.location.origin}/auth/callback`
     });
     setLoading(false);
     if (error) showMsg(translateError(error), true);
