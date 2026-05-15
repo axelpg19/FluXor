@@ -733,28 +733,23 @@ export default function App() {
   // Cargar día de corte desde Supabase
   // Restaurar sesión + detectar token de recovery en la URL
   useEffect(() => {
-    // Detectar si venimos del link de "Restablecer contraseña"
-    const hash = window.location.hash;
-    if (hash && hash.includes('type=recovery')) {
-      // Supabase pone el access_token en el hash — lo procesamos
-      supabase.auth.getSession().then(({ data }) => {
-        if (data.session) {
-          setSession(data.session);
-          setRecoveryMode(true); // mostrar formulario de nueva contraseña
-        }
-        setLoading(false);
-      });
-    } else {
-      supabase.auth.getSession().then(({ data }) => {
-        setSession(data.session);
-        setLoading(false);
-      });
-    }
+    // Con detectSessionInUrl:true, Supabase procesa el hash automáticamente
+    // y dispara PASSWORD_RECOVERY en onAuthStateChange cuando viene del email
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setLoading(false);
+    });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
-      setSession(s);
       if (event === 'PASSWORD_RECOVERY') {
+        // Viene del link del email — mostrar formulario de nueva contraseña
+        setSession(s);
         setRecoveryMode(true);
+        setLoading(false);
+        // Limpiar el hash de la URL para que no se reprocese al recargar
+        window.history.replaceState(null, '', window.location.pathname);
+      } else {
+        setSession(s);
       }
     });
     return () => subscription.unsubscribe();
