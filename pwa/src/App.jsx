@@ -149,7 +149,7 @@ function ResetPasswordScreen({ onDone }) {
       {orbs}
       <div className="pwa-auth-card">
         <div className="pwa-auth-logo-wrap">
-          <img src="/logo-fluxor.png" alt="FluXor" className="pwa-auth-logo-img" />
+          <img src="/icon-512.png" alt="FluXor" className="pwa-auth-logo-img" />
         </div>
 
         {success ? (
@@ -309,8 +309,9 @@ function AuthScreen({ onAuth }) {
 
       <div className="pwa-auth-card">
       {/* Logo */}
-      <div className="pwa-auth-logo-wrap">
-        <img src="/logo-fluxor.png" alt="FluXor" className="pwa-auth-logo-img" />
+      <div className="pwa-auth-logo-wrap" style={{ flexDirection:'column', gap:8 }}>
+        <img src="/icon-512.png" alt="FluXor" className="pwa-auth-logo-img" />
+        <span style={{ fontSize:26, fontWeight:800, background:'linear-gradient(135deg,#818cf8,#c084fc)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', letterSpacing:'-0.03em' }}>FluXor</span>
       </div>
 
       {/* OAuth pending (solo informativo — en PWA la redirección es automática) */}
@@ -733,8 +734,31 @@ export default function App() {
   // Cargar día de corte desde Supabase
   // Restaurar sesión + detectar token de recovery en la URL
   useEffect(() => {
-    // Con detectSessionInUrl:true, Supabase procesa el hash automáticamente
-    // y dispara PASSWORD_RECOVERY en onAuthStateChange cuando viene del email
+    // Detectar recovery ANTES de cualquier render para evitar flash de AuthScreen
+    const hash = window.location.hash || '';
+    const isRecovery = hash.includes('type=recovery');
+
+    if (isRecovery) {
+      // Procesar el token del hash manualmente
+      const params = new URLSearchParams(hash.replace('#', ''));
+      const accessToken  = params.get('access_token');
+      const refreshToken = params.get('refresh_token') || '';
+      if (accessToken) {
+        supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+          .then(({ data }) => {
+            if (data.session) {
+              setSession(data.session);
+              setRecoveryMode(true);
+            }
+            setLoading(false);
+            window.history.replaceState(null, '', window.location.pathname);
+          })
+          .catch(() => setLoading(false));
+        return; // No ejecutar el flujo normal
+      }
+    }
+
+    // Flujo normal: restaurar sesión existente
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setLoading(false);
@@ -742,11 +766,9 @@ export default function App() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
       if (event === 'PASSWORD_RECOVERY') {
-        // Viene del link del email — mostrar formulario de nueva contraseña
         setSession(s);
         setRecoveryMode(true);
         setLoading(false);
-        // Limpiar el hash de la URL para que no se reprocese al recargar
         window.history.replaceState(null, '', window.location.pathname);
       } else {
         setSession(s);
