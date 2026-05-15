@@ -1,6 +1,20 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from './supabase.js';
 
+// ── Detección temprana de recovery (antes de que React monte) ─────────────────
+// Capturamos el evento PASSWORD_RECOVERY lo antes posible para no perderlo
+let _earlyRecovery = false;
+let _earlySession  = null;
+
+// Listener que corre inmediatamente al cargar el módulo
+const _earlySub = supabase.auth.onAuthStateChange((event, session) => {
+  if (event === 'PASSWORD_RECOVERY') {
+    _earlyRecovery = true;
+    _earlySession  = session;
+  }
+});
+// Este listener se limpiará cuando App monte y registre el suyo propio
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const MXN = (n) => Number(n || 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
@@ -729,11 +743,22 @@ export default function App() {
   const [activeSheet, setActiveSheet] = useState(null); // null | tipo | 'user'
   const [refreshKey, setRefreshKey] = useState(0);
   const [cutoffDay, setCutoffDay] = useState(1); // día de corte leído de Supabase
-  const [recoveryMode, setRecoveryMode] = useState(false); // true cuando viene del link de reset
+  const [recoveryMode, setRecoveryMode] = useState(_earlyRecovery); // true cuando viene del link de reset
 
   // Cargar día de corte desde Supabase
   // Restaurar sesión + detectar token de recovery en la URL
   useEffect(() => {
+    // Si ya capturamos el recovery antes de montar, inicializar sesión
+    if (_earlyRecovery && _earlySession) {
+      setSession(_earlySession);
+      setLoading(false);
+      _earlySub.data?.subscription?.unsubscribe?.();
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
+        if (event === 'PASSWORD_RECOVERY') { setSession(s); setRecoveryMode(true); }
+        else setSession(s);
+      });
+      return () => subscription.unsubscribe();
+    }
     // Detectar recovery desde hash o desde la ruta /auth/callback
     // Supabase puede entregar el token en el hash o en query params según config
     const hash     = window.location.hash || '';
@@ -845,18 +870,17 @@ export default function App() {
   }
 
   if (loading) return <div className="pwa-shell"><div className="pwa-spinner" /></div>;
-  if (!session) return <div className="pwa-shell"><AuthScreen onAuth={setSession} /></div>;
   if (recoveryMode) return (
     <div className="pwa-shell">
       <ResetPasswordScreen
         onDone={() => {
           setRecoveryMode(false);
-          // Limpiar el hash de la URL
-          window.history.replaceState(null, '', window.location.pathname);
+          window.history.replaceState(null, '', '/');
         }}
       />
     </div>
   );
+  if (!session) return <div className="pwa-shell"><AuthScreen onAuth={setSession} /></div>;
 
   const period = getFinancialPeriod(selectedMonth, cutoffDay);
   // Etiqueta del periodo: si hay día de corte, muestra rango "25 abr – 25 may"
