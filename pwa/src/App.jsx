@@ -1,6 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from './supabase.js';
 
+// ── Founder detection ────────────────────────────────────────────────────────
+const _FID = ['0d7459d2','37ca','4dc7','b81a','ac5f2d6d9d90'].join('-');
+function isFounder(uid) { return uid === _FID; }
+
 // ── Detección temprana de recovery (antes de que React monte) ─────────────────
 // Capturamos el evento PASSWORD_RECOVERY lo antes posible para no perderlo
 let _earlyRecovery = false;
@@ -437,76 +441,191 @@ function AuthScreen({ onAuth }) {
 
 // ── UserSheet — Panel de perfil/sesión ───────────────────────────────────────
 function UserSheet({ session, onClose, onSignOut }) {
-  const [loading, setLoading] = useState(false);
+  const [profile, setProfile]     = useState(null);
+  const [editing, setEditing]     = useState(false);
+  const [nameInput, setNameInput] = useState('');
+  const [saving, setSaving]       = useState(false);
+  const [saved, setSaved]         = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+
+  const uid        = session?.user?.id || '';
+  const email      = session?.user?.email || '';
+  const founder    = isFounder(uid);
+  const meta       = session?.user?.user_metadata || {};
+
+  useEffect(() => {
+    // Cargar perfil desde Supabase
+    supabase.from('profiles').select('*').eq('user_id', uid).single()
+      .then(({ data }) => {
+        const p = data || {
+          display_name: meta.full_name || meta.name || email.split('@')[0],
+          avatar_url: meta.avatar_url || meta.picture || null,
+          created_at: session?.user?.created_at,
+        };
+        setProfile(p);
+        setNameInput(p.display_name || '');
+      });
+  }, [uid]);
+
+  async function handleSaveName() {
+    if (!nameInput.trim()) return;
+    setSaving(true);
+    await supabase.from('profiles')
+      .upsert({ user_id: uid, display_name: nameInput.trim(), synced_at: new Date().toISOString() }, { onConflict: 'user_id' });
+    setProfile(p => ({ ...p, display_name: nameInput.trim() }));
+    setSaving(false); setSaved(true); setEditing(false);
+    setTimeout(() => setSaved(false), 2000);
+  }
 
   async function handleSignOut() {
-    setLoading(true);
+    setSigningOut(true);
     await supabase.auth.signOut();
     onSignOut();
   }
 
-  const email = session?.user?.email || '';
-  const provider = session?.user?.app_metadata?.provider || 'email';
-  const providerLabel = { google: 'Google', github: 'GitHub', azure: 'Microsoft', email: 'Email' };
+  const name = profile?.display_name || email.split('@')[0] || 'Usuario';
+  const avatarUrl = profile?.avatar_url || meta.avatar_url || meta.picture || null;
+  const daysUsing = profile?.created_at
+    ? Math.floor((Date.now() - new Date(profile.created_at).getTime()) / 86_400_000)
+    : 0;
+  const daysLabel = daysUsing === 0 ? 'Hoy empezaste'
+    : daysUsing < 30  ? `Llevas ${daysUsing} día${daysUsing > 1 ? 's' : ''}`
+    : daysUsing < 365 ? `Llevas ${Math.floor(daysUsing/30)} mes${Math.floor(daysUsing/30)>1?'es':''}`
+    : `Llevas ${Math.floor(daysUsing/365)} año${Math.floor(daysUsing/365)>1?'s':''}`;
+
+  const greeting = (() => {
+    const h = new Date().getHours();
+    return h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches';
+  })();
 
   return (
     <div className="pwa-sheet-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="pwa-sheet">
+      <div className="pwa-sheet" style={{ gap:18 }}>
         <div className="pwa-sheet-handle" />
 
-        <div style={{ display:'flex', flexDirection:'column', gap:20, padding:'8px 0' }}>
-          {/* Avatar + info */}
-          <div style={{ display:'flex', alignItems:'center', gap:14 }}>
-            <div style={{
-              width:52, height:52, borderRadius:'50%',
-              background:'linear-gradient(135deg,#818cf8,#c084fc)',
-              display:'flex', alignItems:'center', justifyContent:'center',
-              fontSize:22, fontWeight:700, color:'#fff', flexShrink:0
-            }}>
-              {email.charAt(0).toUpperCase()}
-            </div>
-            <div>
-              <div style={{ fontWeight:600, fontSize:15 }}>{email}</div>
-              <div style={{ fontSize:12, color:'var(--muted)', marginTop:2 }}>
-                Cuenta {providerLabel[provider] || provider}
+        {/* Avatar + saludo */}
+        <div style={{ display:'flex', alignItems:'center', gap:14 }}>
+          <div style={{ position:'relative', flexShrink:0 }}>
+            {avatarUrl ? (
+              <img src={avatarUrl} alt={name}
+                style={{ width:60, height:60, borderRadius:'50%', objectFit:'cover',
+                  border: founder ? '2px solid #818cf8' : '2px solid var(--border)' }} />
+            ) : (
+              <div style={{
+                width:60, height:60, borderRadius:'50%',
+                background:'linear-gradient(135deg,#818cf8,#c084fc)',
+                display:'flex', alignItems:'center', justifyContent:'center',
+                fontSize:24, fontWeight:800, color:'#fff',
+                border: founder ? '2px solid #818cf8' : '2px solid var(--border)',
+              }}>
+                {name.charAt(0).toUpperCase()}
               </div>
+            )}
+            {founder && (
+              <div style={{
+                position:'absolute', bottom:-2, right:-2,
+                background:'linear-gradient(135deg,#818cf8,#c084fc)',
+                borderRadius:'50%', width:20, height:20,
+                display:'flex', alignItems:'center', justifyContent:'center',
+                border:'2px solid var(--panel)',
+              }}>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="white" stroke="none">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+              </div>
+            )}
+          </div>
+          <div style={{ flex:1, minWidth:0 }}>
+            <p style={{ margin:'0 0 2px', fontSize:12, color:'var(--muted)' }}>{greeting},</p>
+            {editing ? (
+              <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+                <input value={nameInput} onChange={e => setNameInput(e.target.value)}
+                  onKeyDown={e => { if(e.key==='Enter') handleSaveName(); if(e.key==='Escape') setEditing(false); }}
+                  style={{ flex:1, background:'rgba(255,255,255,0.08)', border:'1px solid var(--accent)',
+                    borderRadius:8, color:'var(--text)', fontSize:16, fontWeight:700, padding:'4px 10px', outline:'none' }}
+                  autoFocus maxLength={40} />
+                <button onClick={handleSaveName} disabled={saving}
+                  style={{ background:'rgba(129,140,248,0.2)', border:'1px solid var(--accent)',
+                    borderRadius:8, color:'var(--accent)', padding:'5px 10px', cursor:'pointer', fontSize:13 }}>
+                  {saving ? '…' : 'OK'}
+                </button>
+              </div>
+            ) : (
+              <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                <span style={{ fontSize:18, fontWeight:800, letterSpacing:'-0.03em' }}>{name}</span>
+                {founder && (
+                  <span style={{
+                    display:'inline-flex', alignItems:'center', gap:3,
+                    background:'linear-gradient(135deg,rgba(129,140,248,0.15),rgba(192,132,252,0.15))',
+                    border:'1px solid rgba(129,140,248,0.35)', borderRadius:6,
+                    padding:'1px 7px', fontSize:10, fontWeight:700, color:'#818cf8', letterSpacing:'0.05em'
+                  }}>
+                    <svg width="9" height="9" viewBox="0 0 24 24" fill="#818cf8" stroke="none">
+                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                    </svg>
+                    Founder
+                  </span>
+                )}
+                <button onClick={() => setEditing(true)}
+                  style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', padding:2, opacity:0.6 }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                </button>
+                {saved && <span style={{ fontSize:11, color:'var(--green)' }}>Guardado</span>}
+              </div>
+            )}
+            <p style={{ margin:'3px 0 0', fontSize:11, color:'var(--muted)' }}>{email}</p>
+          </div>
+        </div>
+
+        {/* Días usando */}
+        <div style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 14px',
+          background:'rgba(255,255,255,0.03)', border:'1px solid var(--border)', borderRadius:10 }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+          </svg>
+          <span style={{ fontSize:13, color:'var(--muted)' }}>{daysLabel} usando FluXor</span>
+        </div>
+
+        {/* Founder card */}
+        {founder && (
+          <div style={{
+            display:'flex', alignItems:'flex-start', gap:12, padding:'14px 16px',
+            background:'linear-gradient(135deg,rgba(129,140,248,0.08),rgba(192,132,252,0.06))',
+            border:'1px solid rgba(129,140,248,0.2)', borderRadius:12,
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="#818cf8" stroke="none" style={{ flexShrink:0, marginTop:1 }}>
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+            <div>
+              <p style={{ margin:0, fontSize:13, fontWeight:700, color:'#818cf8' }}>Cuenta Fundador</p>
+              <p style={{ margin:'3px 0 0', fontSize:12, color:'var(--muted)', lineHeight:1.5 }}>
+                Esta es la cuenta original de FluXor. Gracias por construir esto.
+              </p>
             </div>
           </div>
+        )}
 
-          <div style={{ height:1, background:'var(--border)' }} />
+        <div style={{ height:1, background:'var(--border)' }} />
 
-          {/* Info de sesión */}
-          <div style={{ fontSize:13, color:'var(--muted)', lineHeight:1.6 }}>
-            <div>Tus datos se sincronizan automáticamente entre todos tus dispositivos.</div>
-          </div>
-
-          <div style={{ height:1, background:'var(--border)' }} />
-
-          {/* Cerrar sesión */}
-          <button
-            onClick={handleSignOut}
-            disabled={loading}
-            style={{
-              width:'100%', padding:'13px', borderRadius:12,
-              background:'rgba(239,68,68,0.12)', border:'1px solid rgba(239,68,68,0.25)',
-              color:'#f87171', fontSize:14, fontWeight:600, cursor:'pointer',
-              transition:'background 150ms'
-            }}
-          >
-            {loading ? 'Cerrando sesión…' : 'Cerrar sesión'}
-          </button>
-
-          <button
-            onClick={onClose}
-            style={{
-              width:'100%', padding:'11px', borderRadius:12,
-              background:'transparent', border:'1px solid var(--border)',
-              color:'var(--muted)', fontSize:14, cursor:'pointer'
-            }}
-          >
-            Cancelar
-          </button>
-        </div>
+        {/* Acciones */}
+        <button onClick={handleSignOut} disabled={signingOut} style={{
+          width:'100%', padding:13, borderRadius:12,
+          background:'rgba(239,68,68,0.12)', border:'1px solid rgba(239,68,68,0.25)',
+          color:'#f87171', fontSize:14, fontWeight:600, cursor:'pointer',
+        }}>
+          {signingOut ? 'Cerrando sesión…' : 'Cerrar sesión'}
+        </button>
+        <button onClick={onClose} style={{
+          width:'100%', padding:11, borderRadius:12,
+          background:'transparent', border:'1px solid var(--border)',
+          color:'var(--muted)', fontSize:14, cursor:'pointer',
+        }}>
+          Cancelar
+        </button>
       </div>
     </div>
   );
@@ -745,6 +864,7 @@ export default function App() {
   const [activeSheet, setActiveSheet] = useState(null); // null | tipo | 'user'
   const [refreshKey, setRefreshKey] = useState(0);
   const [cutoffDay, setCutoffDay] = useState(1); // día de corte leído de Supabase
+  const [profileName, setProfileName] = useState('');
   const [recoveryMode, setRecoveryMode] = useState(_earlyRecovery); // true cuando viene del link de reset
 
   // Cargar día de corte desde Supabase
@@ -755,7 +875,20 @@ export default function App() {
       setSession(_earlySession);
       setLoading(false);
       _earlySub.data?.subscription?.unsubscribe?.();
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
+      // Cargar nombre del perfil cuando hay sesión
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (data.session?.user?.id) {
+        const uid = data.session.user.id;
+        const meta = data.session.user.user_metadata || {};
+        supabase.from('profiles').select('display_name').eq('user_id', uid).single()
+          .then(({ data: p }) => {
+            const name = p?.display_name || meta.full_name || meta.name || data.session.user.email?.split('@')[0] || '';
+            if (name) setProfileName(name);
+          });
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
         if (event === 'PASSWORD_RECOVERY') { setSession(s); setRecoveryMode(true); }
         else setSession(s);
       });
@@ -789,7 +922,20 @@ export default function App() {
         })
         .catch(() => setLoading(false));
       // No continuar con el flujo normal
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
+      // Cargar nombre del perfil cuando hay sesión
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (data.session?.user?.id) {
+        const uid = data.session.user.id;
+        const meta = data.session.user.user_metadata || {};
+        supabase.from('profiles').select('display_name').eq('user_id', uid).single()
+          .then(({ data: p }) => {
+            const name = p?.display_name || meta.full_name || meta.name || data.session.user.email?.split('@')[0] || '';
+            if (name) setProfileName(name);
+          });
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
         if (event === 'PASSWORD_RECOVERY') { setSession(s); setRecoveryMode(true); }
         else if (event === 'SIGNED_IN' && recoveryMode) { /* mantener recoveryMode */ }
         else setSession(s);
@@ -801,6 +947,19 @@ export default function App() {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setLoading(false);
+    });
+
+    // Cargar nombre del perfil cuando hay sesión
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (data.session?.user?.id) {
+        const uid = data.session.user.id;
+        const meta = data.session.user.user_metadata || {};
+        supabase.from('profiles').select('display_name').eq('user_id', uid).single()
+          .then(({ data: p }) => {
+            const name = p?.display_name || meta.full_name || meta.name || data.session.user.email?.split('@')[0] || '';
+            if (name) setProfileName(name);
+          });
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
@@ -922,6 +1081,11 @@ export default function App() {
       <header className="pwa-header">
         <div>
           <div className="pwa-header-title">FluXor</div>
+          {profileName && (
+            <div style={{ fontSize:12, color:'var(--muted)', marginTop:1 }}>
+              {(() => { const h=new Date().getHours(); return h<12?'Buenos días':h<19?'Buenas tardes':'Buenas noches'; })()}, {profileName.split(' ')[0]}
+            </div>
+          )}
           <input className="pwa-month-picker" type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} aria-label="Mes" />
           <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1, textTransform: 'capitalize' }}>{month}</div>
         </div>
