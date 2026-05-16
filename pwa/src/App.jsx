@@ -121,9 +121,11 @@ function PasswordStrengthBar({ password }) {
 
 function validatePassword(pwd) {
   const errors = [];
-  if (pwd.length < 8)           errors.push('Mínimo 8 caracteres');
-  if (!/[A-Z]/.test(pwd))       errors.push('Al menos una mayúscula');
-  if (!/[0-9]/.test(pwd))       errors.push('Al menos un número');
+  if (pwd.length < 8)             errors.push('Mínimo 8 caracteres');
+  if (!/[A-Z]/.test(pwd))         errors.push('Al menos una mayúscula');
+  if (!/[a-z]/.test(pwd))         errors.push('Al menos una minúscula');
+  if (!/[0-9]/.test(pwd))         errors.push('Al menos un número');
+  if (!/[^A-Za-z0-9]/.test(pwd))  errors.push('Al menos un símbolo (!@#$...)');
   return errors;
 }
 
@@ -292,9 +294,7 @@ function AuthScreen({ onAuth }) {
     e.preventDefault(); reset();
     setLoading(true);
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      // La PWA ya sabe procesar el callback de recovery en esta ruta.
-      // Mantenerlo explícito evita que el enlace vuelva al login normal.
-      redirectTo: `${window.location.origin}/auth/callback`
+      redirectTo: window.location.origin
     });
     setLoading(false);
     if (error) showMsg(translateError(error), true);
@@ -746,7 +746,6 @@ export default function App() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [cutoffDay, setCutoffDay] = useState(1); // día de corte leído de Supabase
   const [recoveryMode, setRecoveryMode] = useState(_earlyRecovery); // true cuando viene del link de reset
-  const [recoveryError, setRecoveryError] = useState('');
 
   // Cargar día de corte desde Supabase
   // Restaurar sesión + detectar token de recovery en la URL
@@ -771,37 +770,24 @@ export default function App() {
     // Parsear tanto hash (#access_token=...) como query (?access_token=...)
     const rawParams = hash.replace('#', '') || search.replace('?', '');
     const params    = new URLSearchParams(rawParams);
-    const tokenType    = params.get('type');
-    const accessToken  = params.get('access_token');
-    const refreshToken = params.get('refresh_token');
-    const tokenHash    = params.get('token_hash');
+    const tokenType   = params.get('type');
+    const accessToken = params.get('access_token');
 
-    const isRecoveryWithSessionTokens = tokenType === 'recovery' && !!accessToken && !!refreshToken;
-    const isRecoveryWithTokenHash     = tokenType === 'recovery' && !!tokenHash;
-    const isRecovery                   = isRecoveryWithSessionTokens || isRecoveryWithTokenHash;
+    const isRecovery = tokenType === 'recovery' && !!accessToken;
 
     if (isRecovery) {
-      const recoveryRequest = isRecoveryWithTokenHash
-        ? supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' })
-        : supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
-
-      recoveryRequest
+      const refreshToken = params.get('refresh_token') || '';
+      supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
         .then(({ data, error }) => {
           if (!error && data.session) {
             setSession(data.session);
             setRecoveryMode(true);
-            setRecoveryError('');
-            // Limpiar URL solo cuando ya existe una sesi?n v?lida de recovery.
-            window.history.replaceState(null, '', '/');
-          } else {
-            setRecoveryError('El enlace de recuperaci?n no es v?lido o ya expir?. Solicita uno nuevo.');
           }
           setLoading(false);
+          // Limpiar URL — reemplazar /auth/callback por /
+          window.history.replaceState(null, '', '/');
         })
-        .catch(() => {
-          setRecoveryError('No se pudo validar el enlace de recuperaci?n. Solicita uno nuevo.');
-          setLoading(false);
-        });
+        .catch(() => setLoading(false));
       // No continuar con el flujo normal
       const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
         if (event === 'PASSWORD_RECOVERY') { setSession(s); setRecoveryMode(true); }
@@ -886,28 +872,6 @@ export default function App() {
   }
 
   if (loading) return <div className="pwa-shell"><div className="pwa-spinner" /></div>;
-  if (recoveryError) return (
-    <div className="pwa-shell">
-      <div className="pwa-auth">
-        <div className="pwa-auth-card">
-          <div className="auth-heading" style={{ textAlign:'center' }}>
-            <h2 style={{ margin:'0 0 6px', fontSize:20, fontWeight:700 }}>Enlace no v?lido</h2>
-            <p style={{ margin:0, fontSize:13, color:'var(--muted)' }}>{recoveryError}</p>
-          </div>
-          <button
-            className="pwa-submit"
-            onClick={() => {
-              setRecoveryError('');
-              window.history.replaceState(null, '', '/');
-            }}
-            style={{ width:'100%', marginTop:16 }}
-          >
-            Volver al inicio
-          </button>
-        </div>
-      </div>
-    </div>
-  );
   if (recoveryMode) return (
     <div className="pwa-shell">
       <ResetPasswordScreen
