@@ -500,22 +500,25 @@ function UserSheet({ session, onClose, onSignOut }) {
 
   return (
     <div className="pwa-sheet-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="pwa-sheet" style={{ gap:18 }}>
+      <div className="pwa-sheet" style={{ gap:0 }}>
         <div className="pwa-sheet-handle" />
 
+        {/* Contenido con padding y separación cómoda */}
+        <div style={{ display:'flex', flexDirection:'column', gap:20, padding:'0 4px 8px' }}>
+
         {/* Avatar + saludo */}
-        <div style={{ display:'flex', alignItems:'center', gap:14 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:16 }}>
           <div style={{ position:'relative', flexShrink:0 }}>
             {avatarUrl ? (
               <img src={avatarUrl} alt={name}
-                style={{ width:60, height:60, borderRadius:'50%', objectFit:'cover',
+                style={{ width:72, height:72, borderRadius:'50%', objectFit:'cover',
                   border: founder ? '2px solid #818cf8' : '2px solid var(--border)' }} />
             ) : (
               <div style={{
-                width:60, height:60, borderRadius:'50%',
+                width:72, height:72, borderRadius:'50%',
                 background:'linear-gradient(135deg,#818cf8,#c084fc)',
                 display:'flex', alignItems:'center', justifyContent:'center',
-                fontSize:24, fontWeight:800, color:'#fff',
+                fontSize:28, fontWeight:800, color:'#fff',
                 border: founder ? '2px solid #818cf8' : '2px solid var(--border)',
               }}>
                 {name.charAt(0).toUpperCase()}
@@ -581,8 +584,8 @@ function UserSheet({ session, onClose, onSignOut }) {
         </div>
 
         {/* Días usando */}
-        <div style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 14px',
-          background:'rgba(255,255,255,0.03)', border:'1px solid var(--border)', borderRadius:10 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10, padding:'13px 16px',
+          background:'rgba(255,255,255,0.03)', border:'1px solid var(--border)', borderRadius:12 }}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
             <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
@@ -612,20 +615,24 @@ function UserSheet({ session, onClose, onSignOut }) {
         <div style={{ height:1, background:'var(--border)' }} />
 
         {/* Acciones */}
+        <div style={{ height:1, background:'var(--border)' }} />
+
         <button onClick={handleSignOut} disabled={signingOut} style={{
-          width:'100%', padding:13, borderRadius:12,
+          width:'100%', padding:14, borderRadius:12,
           background:'rgba(239,68,68,0.12)', border:'1px solid rgba(239,68,68,0.25)',
           color:'#f87171', fontSize:14, fontWeight:600, cursor:'pointer',
         }}>
           {signingOut ? 'Cerrando sesión…' : 'Cerrar sesión'}
         </button>
         <button onClick={onClose} style={{
-          width:'100%', padding:11, borderRadius:12,
+          width:'100%', padding:13, borderRadius:12,
           background:'transparent', border:'1px solid var(--border)',
           color:'var(--muted)', fontSize:14, cursor:'pointer',
         }}>
           Cancelar
         </button>
+
+        </div>{/* /inner container */}
       </div>
     </div>
   );
