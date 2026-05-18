@@ -710,9 +710,10 @@ function MovementSheet({ tipo, userId, cards = [], selectedMonth, onSave, onClos
     let periodoOverride = null;
     if (form.metodo === 'tarjeta' && form.fuente) {
       const card = cards.find(c => c.nombre === form.fuente && c.tipo === 'credito');
-      if (card?.dia_corte_tarjeta) {
+      const corteEfectivo = card?.dia_corte_tarjeta || card?.dia_vencimiento;
+      if (corteEfectivo) {
         const diaGasto = new Date(form.fecha + 'T12:00:00').getDate();
-        if (diaGasto > Number(card.dia_corte_tarjeta)) {
+        if (diaGasto > Number(corteEfectivo)) {
           // Gasto después del corte → siguiente mes financiero
           const [y, m] = form.fecha.slice(0, 7).split('-').map(Number);
           periodoOverride = m === 12 ? `${y+1}-01` : `${y}-${String(m+1).padStart(2,'0')}`;
