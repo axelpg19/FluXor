@@ -462,6 +462,10 @@ function UserSheet({ session, onClose, onSignOut }) {
           avatar_url: meta.avatar_url || meta.picture || null,
           created_at: session?.user?.created_at,
         };
+        // Usar created_at del usuario de auth (más confiable que el del perfil)
+        if (session?.user?.created_at) {
+          p.created_at = session.user.created_at;
+        }
         setProfile(p);
         setNameInput(p.display_name || '');
       });
@@ -1020,15 +1024,31 @@ export default function App() {
 
     const period = getFinancialPeriod(month, cutoffDay);
 
-    const { data } = await supabase
+    // Query 1: movimientos normales del periodo (sin override)
+    const { data: dataNormal } = await supabase
       .from('movimientos')
       .select('*')
       .eq('user_id', session.user.id)
       .is('deleted_at', null)
+      .is('periodo_override', null)
       .gte('fecha', period.start)
       .lte('fecha', period.end)
       .order('fecha', { ascending: false })
       .limit(50);
+
+    // Query 2: movimientos con periodo_override para este mes
+    const { data: dataOverride } = await supabase
+      .from('movimientos')
+      .select('*')
+      .eq('user_id', session.user.id)
+      .is('deleted_at', null)
+      .eq('periodo_override', month)
+      .order('fecha', { ascending: false })
+      .limit(50);
+
+    // Merge y ordenar por fecha descendente
+    const data = [...(dataNormal || []), ...(dataOverride || [])]
+      .sort((a, b) => b.fecha.localeCompare(a.fecha));
 
     const { data: cardData } = await supabase
       .from('tarjetas')
