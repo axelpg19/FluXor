@@ -706,21 +706,36 @@ function MovementSheet({ tipo, userId, cards = [], selectedMonth, onSave, onClos
 
     const montoFinal = esMXN ? Number(form.monto) : Math.round(montoMXN * 100) / 100;
 
+    // Calcular periodo_override si es tarjeta de crédito y pasó el corte
+    let periodoOverride = null;
+    if (form.metodo === 'tarjeta' && form.fuente) {
+      const card = cards.find(c => c.nombre === form.fuente && c.tipo === 'credito');
+      if (card?.dia_corte_tarjeta) {
+        const diaGasto = new Date(form.fecha + 'T12:00:00').getDate();
+        if (diaGasto > Number(card.dia_corte_tarjeta)) {
+          // Gasto después del corte → siguiente mes financiero
+          const [y, m] = form.fecha.slice(0, 7).split('-').map(Number);
+          periodoOverride = m === 12 ? `${y+1}-01` : `${y}-${String(m+1).padStart(2,'0')}`;
+        }
+      }
+    }
+
     const { error: err } = await supabase.from('movimientos').insert({
-      user_id:        userId,
+      user_id:         userId,
       tipo,
-      monto:          montoFinal,
-      categoria:      form.categoria.trim(),
-      metodo:         form.metodo,
-      fuente:         form.fuente || null,
-      fecha:          form.fecha,
-      estado:         'activo',
-      recurrente:     0,
-      moneda:         form.moneda,
-      monto_original: esMXN ? null : Number(form.monto),
-      tipo_cambio:    esMXN ? 1 : Number(form.tipo_cambio),
-      synced_at:      new Date().toISOString(),
-      sync_id:        crypto.randomUUID(),
+      monto:           montoFinal,
+      categoria:       form.categoria.trim(),
+      metodo:          form.metodo,
+      fuente:          form.fuente || null,
+      fecha:           form.fecha,
+      estado:          'activo',
+      recurrente:      0,
+      moneda:          form.moneda,
+      monto_original:  esMXN ? null : Number(form.monto),
+      tipo_cambio:     esMXN ? 1 : Number(form.tipo_cambio),
+      periodo_override: periodoOverride,
+      synced_at:       new Date().toISOString(),
+      sync_id:         crypto.randomUUID(),
     });
 
     setSaving(false);
