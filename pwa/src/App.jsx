@@ -454,21 +454,44 @@ function UserSheet({ session, onClose, onSignOut }) {
   const meta       = session?.user?.user_metadata || {};
 
   useEffect(() => {
-    // Cargar perfil desde Supabase
-    supabase.from('profiles').select('*').eq('user_id', uid).single()
-      .then(({ data }) => {
-        const p = data || {
-          display_name: meta.full_name || meta.name || email.split('@')[0],
-          avatar_url: meta.avatar_url || meta.picture || null,
-          created_at: session?.user?.created_at,
-        };
-        // Usar created_at del usuario de auth (más confiable que el del perfil)
-        if (session?.user?.created_at) {
-          p.created_at = session.user.created_at;
-        }
-        setProfile(p);
-        setNameInput(p.display_name || '');
-      });
+    // Cargar perfil y fecha real de creación de cuenta desde Supabase Auth
+    Promise.all([
+      supabase.from('profiles').select('*').eq('user_id', uid).single(),
+      supabase.auth.getUser()
+    ]).then(async ([{ data: profileData }, { data: { user: authUser } }]) => {
+      const defaultName = meta.full_name || meta.name || null;
+      const defaultAvatar = meta.avatar_url || meta.picture || null;
+
+      // Si no existe el perfil, crearlo automáticamente
+      if (!profileData) {
+        await supabase.from('profiles').upsert({
+          user_id: uid,
+          display_name: defaultName,
+          avatar_url: defaultAvatar,
+          synced_at: new Date().toISOString(),
+        }, { onConflict: 'user_id' });
+      }
+
+      const p = {
+        ...(profileData || {}),
+        display_name: profileData?.display_name || defaultName,
+        avatar_url: profileData?.avatar_url || defaultAvatar,
+        created_at: authUser?.created_at || profileData?.created_at || null,
+      };
+      setProfile(p);
+      setNameInput(p.display_name || '');
+
+      // Actualizar profileName en el header
+      if (p.display_name) setProfileName(p.display_name);
+    }).catch(() => {
+      const fallback = {
+        display_name: meta.full_name || meta.name || null,
+        avatar_url: meta.avatar_url || meta.picture || null,
+        created_at: session?.user?.created_at || null,
+      };
+      setProfile(fallback);
+      setNameInput(fallback.display_name || '');
+    });
   }, [uid]);
 
   async function handleSaveName() {
@@ -931,23 +954,38 @@ export default function App() {
     const rawParams = hash.replace('#', '') || search.replace('?', '');
     const params    = new URLSearchParams(rawParams);
     const tokenType   = params.get('type');
-    const accessToken = params.get('access_token');
+    const tokenHash   = params.get('token_hash');   // nuevo formato del email template
+    const accessToken = params.get('access_token'); // formato legacy
 
-    const isRecovery = tokenType === 'recovery' && !!accessToken;
+    const isRecovery = tokenType === 'recovery' && (!!tokenHash || !!accessToken);
 
     if (isRecovery) {
-      const refreshToken = params.get('refresh_token') || '';
-      supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
-        .then(({ data, error }) => {
-          if (!error && data.session) {
-            setSession(data.session);
-            setRecoveryMode(true);
-          }
-          setLoading(false);
-          // Limpiar URL — reemplazar /auth/callback por /
-          window.history.replaceState(null, '', '/');
-        })
-        .catch(() => setLoading(false));
+      if (tokenHash) {
+        // Nuevo formato: token_hash → verificar OTP
+        supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' })
+          .then(({ data, error }) => {
+            if (!error && data.session) {
+              setSession(data.session);
+              setRecoveryMode(true);
+            }
+            setLoading(false);
+            window.history.replaceState(null, '', '/');
+          })
+          .catch(() => setLoading(false));
+      } else {
+        // Formato legacy: access_token → setSession
+        const refreshToken = params.get('refresh_token') || '';
+        supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+          .then(({ data, error }) => {
+            if (!error && data.session) {
+              setSession(data.session);
+              setRecoveryMode(true);
+            }
+            setLoading(false);
+            window.history.replaceState(null, '', '/');
+          })
+          .catch(() => setLoading(false));
+      }
       // No continuar con el flujo normal
       // Cargar nombre del perfil cuando hay sesión
     supabase.auth.getSession().then(async ({ data }) => {
