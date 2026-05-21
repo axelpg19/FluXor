@@ -665,6 +665,106 @@ function UserSheet({ session, onClose, onSignOut }) {
   );
 }
 
+// ── PWASearch — Búsqueda global para PWA ─────────────────────────────────────
+function PWASearch({ onClose }) {
+  const [query, setQuery]     = useState('');
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [selected, setSelected] = useState(0);
+  const inputRef = useRef(null);
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  useEffect(() => {
+    function handler(e) {
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'ArrowDown') { e.preventDefault(); setSelected(s => Math.min(s+1, results.length-1)); }
+      if (e.key === 'ArrowUp')   { e.preventDefault(); setSelected(s => Math.max(s-1, 0)); }
+      if (e.key === 'Enter' && results[selected]) {
+        const r = results[selected];
+        onClose((r.periodo_override || r.fecha).slice(0,7));
+      }
+    }
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [results, selected, onClose]);
+
+  useEffect(() => {
+    if (!query.trim()) { setResults([]); return; }
+    const t = setTimeout(async () => {
+      setLoading(true);
+      const q = query.toLowerCase();
+      const { data } = await supabase
+        .from('movimientos')
+        .select('id, tipo, monto, categoria, metodo, fuente, fecha, moneda, monto_original, periodo_override')
+        .is('deleted_at', null)
+        .or(`categoria.ilike.%${q}%,fuente.ilike.%${q}%`)
+        .order('fecha', { ascending: false })
+        .limit(80);
+      setResults(data || []);
+      setSelected(0);
+      setLoading(false);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  const sign = r => r.tipo === 'ingreso' ? '+' : r.tipo === 'gasto' ? '-' : '';
+  const amtCls = r => r.tipo === 'ingreso' ? 'var(--green)' : r.tipo === 'gasto' ? 'var(--red)' : 'var(--muted)';
+
+  return (
+    <div className="pwa-sheet-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="pwa-search-modal">
+        {/* Input */}
+        <div className="pwa-search-input-wrap">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color:'var(--muted)', flexShrink:0 }}>
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input ref={inputRef} className="pwa-search-input"
+            placeholder="Buscar movimientos…"
+            value={query} onChange={e => setQuery(e.target.value)} />
+          {loading && <div className="pwa-spinner" style={{ width:16, height:16, flexShrink:0 }} />}
+          <button onClick={() => onClose()} style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', fontSize:13 }}>Cerrar</button>
+        </div>
+
+        {/* Resultados */}
+        <div className="pwa-search-results">
+          {!query.trim() && (
+            <div style={{ padding:'32px 20px', textAlign:'center', color:'var(--muted)', fontSize:13 }}>
+              Busca por categoría, tarjeta o monto
+            </div>
+          )}
+          {query.trim() && !loading && results.length === 0 && (
+            <div style={{ padding:'32px 20px', textAlign:'center', color:'var(--muted)', fontSize:13 }}>
+              Sin resultados para "{query}"
+            </div>
+          )}
+          {results.map((r, i) => {
+            const monthKey = (r.periodo_override || r.fecha).slice(0,7);
+            const [y, m] = monthKey.split('-').map(Number);
+            const monthLabel = new Date(y, m-1, 1).toLocaleDateString('es-MX', { month:'short', year:'numeric' });
+            return (
+              <button key={r.id}
+                className={`pwa-search-item ${i === selected ? 'active' : ''}`}
+                onClick={() => onClose(monthKey)}>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:14, fontWeight:600, color:'var(--text)' }}>{r.categoria}</div>
+                  <div style={{ fontSize:12, color:'var(--muted)', marginTop:2 }}>
+                    {r.fecha} · {monthLabel}
+                    {r.fuente && ` · ${r.fuente}`}
+                  </div>
+                </div>
+                <div style={{ fontSize:14, fontWeight:700, color:amtCls(r), flexShrink:0 }}>
+                  {sign(r)}{MXN(r.monto)}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── MovementSheet — Formulario de movimiento en PWA ─────────────────────────
 const CURRENCIES_PWA = [
   { code: 'MXN', symbol: '$'  },
@@ -915,7 +1015,33 @@ export default function App() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [cutoffDay, setCutoffDay] = useState(1); // día de corte leído de Supabase
   const [profileName, setProfileName] = useState('');
+  const [tema, setTema] = useState('dark');
+  const [showSearch, setShowSearch] = useState(false);
   const [recoveryMode, setRecoveryMode] = useState(_earlyRecovery); // true cuando viene del link de reset
+
+  // Tema — sincronizar con SO y localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('fluxor-tema') || 'system';
+    setTema(saved);
+    applyTheme(saved);
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = () => { if (saved === 'system') applyTheme('system'); };
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
+  function applyTheme(t) {
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const eff = t === 'system' ? (prefersDark ? 'dark' : 'light') : t;
+    document.documentElement.setAttribute('data-theme', eff);
+  }
+
+  function toggleTema() {
+    const next = tema === 'dark' ? 'light' : tema === 'light' ? 'system' : 'dark';
+    setTema(next);
+    applyTheme(next);
+    localStorage.setItem('fluxor-tema', next);
+  }
 
   // Cargar día de corte desde Supabase
   // Restaurar sesión + detectar token de recovery en la URL
@@ -1231,6 +1357,16 @@ export default function App() {
           );
         })}
       </div>
+
+      {/* Búsqueda global */}
+      {showSearch && (
+        <PWASearch
+          onClose={(monthKey) => {
+            setShowSearch(false);
+            if (monthKey) setSelectedMonth(monthKey);
+          }}
+        />
+      )}
 
       {/* Sheets */}
       {activeSheet && activeSheet !== 'user' && (
