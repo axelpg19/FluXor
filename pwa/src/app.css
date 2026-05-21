@@ -14,6 +14,61 @@
   100% { transform: translate(0, 0) scale(1); }
 }
 
+/* ── Tema claro ──────────────────────────────────────────────────────────────── */
+[data-theme="light"] {
+  --bg:          #f4f4f8;
+  --panel:       #ffffff;
+  --panel-soft:  #f0f0f5;
+  --border:      #dddde8;
+  --text:        #1a1a2e;
+  --muted:       #6868a0;
+  --input-bg:    #fff;
+  --shadow:      0 8px 32px rgba(0,0,0,0.10);
+}
+[data-theme="light"] .pwa-shell  { background: var(--bg); }
+[data-theme="light"] .pwa-header { background: rgba(244,244,248,0.92); border-color: var(--border); }
+[data-theme="light"] .pwa-sheet  { background: var(--panel); }
+[data-theme="light"] input,
+[data-theme="light"] select      { background: var(--input-bg); border-color: var(--border); color: var(--text); }
+[data-theme="light"] .pwa-oauth-btn { background: rgba(0,0,0,0.04); }
+[data-theme="light"] .pwa-auth   { background: var(--bg); }
+[data-theme="light"] .pwa-auth-card { background: rgba(255,255,255,0.8); border-color: var(--border); }
+
+/* Transición suave de tema */
+*, *::before, *::after {
+  transition: background-color 200ms ease, border-color 200ms ease, color 100ms ease;
+}
+button, input, select { transition: background-color 200ms ease, border-color 200ms ease, color 100ms ease, box-shadow 150ms ease, transform 100ms ease, opacity 150ms ease; }
+
+/* ── Búsqueda PWA ────────────────────────────────────────────────────────────── */
+.pwa-search-modal {
+  background: var(--panel);
+  border-radius: 20px 20px 0 0;
+  width: 100%; max-height: 85vh;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  position: absolute; bottom: 0; left: 0; right: 0;
+}
+.pwa-search-input-wrap {
+  display: flex; align-items: center; gap: 10px;
+  padding: 16px 20px; border-bottom: 1px solid var(--border);
+}
+.pwa-search-input {
+  flex: 1; background: none; border: none; outline: none;
+  color: var(--text); font-size: 16px;
+}
+.pwa-search-results {
+  overflow-y: auto; flex: 1;
+  padding: 6px;
+}
+.pwa-search-item {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%; padding: 12px 14px; border-radius: 10px;
+  border: none; background: none; cursor: pointer;
+  text-align: left; transition: background 100ms;
+}
+.pwa-search-item:hover, .pwa-search-item.active { background: var(--panel-soft); }
+
 :root {
   --bg:       #151515;
   --panel:    #1e1e1e;
