@@ -5,6 +5,69 @@ import { supabase } from './supabase.js';
 const _FID = ['0d7459d2','37ca','4dc7','b81a','ac5f2d6d9d90'].join('-');
 function isFounder(uid) { return uid === _FID; }
 
+// ── useUndo hook (PWA) ───────────────────────────────────────────────────────
+function useUndo() {
+  const [toast, setToast]   = useState(null);
+  const timerRef            = useRef(null);
+  const pendingRef          = useRef(null);
+
+  const clearTimer = () => { if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; } };
+
+  const pushUndo = useCallback((message, onConfirm, onUndo) => {
+    // Confirmar pending anterior
+    if (pendingRef.current) { clearTimer(); pendingRef.current.onConfirm(); }
+    const id = crypto.randomUUID();
+    const entry = { id, message, onConfirm, onUndo };
+    pendingRef.current = entry;
+    setToast(entry);
+    timerRef.current = setTimeout(() => {
+      if (pendingRef.current?.id === id) { pendingRef.current.onConfirm(); pendingRef.current = null; setToast(null); }
+    }, 5000);
+  }, []);
+
+  const handleUndo = useCallback(() => {
+    if (!pendingRef.current) return;
+    clearTimer(); pendingRef.current.onUndo(); pendingRef.current = null; setToast(null);
+  }, []);
+
+  const handleDismiss = useCallback(() => {
+    if (!pendingRef.current) return;
+    clearTimer(); pendingRef.current.onConfirm(); pendingRef.current = null; setToast(null);
+  }, []);
+
+  useEffect(() => () => { clearTimer(); if (pendingRef.current) { pendingRef.current.onConfirm(); } }, []);
+
+  return { toast, pushUndo, handleUndo, handleDismiss };
+}
+
+// ── UndoToastPWA ──────────────────────────────────────────────────────────────
+function UndoToastPWA({ toast, onUndo, onDismiss }) {
+  const [progress, setProgress] = useState(100);
+  const startRef = useRef(Date.now());
+  useEffect(() => {
+    if (!toast) return;
+    startRef.current = Date.now(); setProgress(100);
+    const iv = setInterval(() => {
+      const pct = Math.max(0, 100 - ((Date.now() - startRef.current) / 5000) * 100);
+      setProgress(pct); if (pct <= 0) clearInterval(iv);
+    }, 50);
+    return () => clearInterval(iv);
+  }, [toast?.id]);
+  if (!toast) return null;
+  return (
+    <div className="pwa-undo-wrap">
+      <div className="pwa-undo-toast">
+        <div className="pwa-undo-progress"><div className="pwa-undo-fill" style={{ width: `${progress}%` }} /></div>
+        <div className="pwa-undo-body">
+          <span className="pwa-undo-msg">{toast.message}</span>
+          <button className="pwa-undo-btn" onClick={onUndo}>Deshacer</button>
+          <button onClick={onDismiss} style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', padding:'4px 6px', fontSize:16 }}>×</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Detección temprana de recovery (antes de que React monte) ─────────────────
 // Capturamos el evento PASSWORD_RECOVERY lo antes posible para no perderlo
 let _earlyRecovery = false;
@@ -1017,6 +1080,7 @@ export default function App() {
   const [profileName, setProfileName] = useState('');
   const [tema, setTema] = useState('dark');
   const [showSearch, setShowSearch] = useState(false);
+  const { toast: undoToast, pushUndo, handleUndo, handleDismiss } = useUndo();
   const [recoveryMode, setRecoveryMode] = useState(_earlyRecovery); // true cuando viene del link de reset
 
   // Tema — sincronizar con SO y localStorage
@@ -1373,6 +1437,8 @@ export default function App() {
           );
         })}
       </div>
+
+      <UndoToastPWA toast={undoToast} onUndo={handleUndo} onDismiss={handleDismiss} />
 
       {/* Búsqueda global */}
       {showSearch && (
