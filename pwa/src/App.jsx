@@ -1051,6 +1051,60 @@ function MovementSheet({ tipo, userId, cards = [], selectedMonth, onSave, onClos
   );
 }
 
+// ── PWAMiniDonut ─────────────────────────────────────────────────────────────
+function PWAMiniDonut({ ingresos, gastos }) {
+  const SIZE = 72;
+  const cx = SIZE / 2;
+  const cy = SIZE / 2;
+  const R = 27;
+  const SW = 10;
+  const circ = 2 * Math.PI * R;
+  const total = ingresos + gastos;
+  const balance = ingresos - gastos;
+  const incomeDash = total > 0 ? (ingresos / total) * circ : 0;
+  const expenseDash = circ - incomeDash;
+
+  return (
+    <div className="pwa-mini-donut-wrap">
+      <div className="pwa-mini-donut-svg-wrap">
+        <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`}>
+          <circle cx={cx} cy={cy} r={R} fill="none" stroke="var(--border)" strokeWidth={SW} />
+          {ingresos > 0 && (
+            <circle cx={cx} cy={cy} r={R} fill="none"
+              stroke="rgba(74,222,128,0.8)" strokeWidth={SW}
+              strokeDasharray={`${incomeDash} ${circ - incomeDash}`}
+              strokeDashoffset={circ / 4} strokeLinecap="butt" />
+          )}
+          {gastos > 0 && (
+            <circle cx={cx} cy={cy} r={R} fill="none"
+              stroke="rgba(251,113,133,0.8)" strokeWidth={SW}
+              strokeDasharray={`${expenseDash} ${circ - expenseDash}`}
+              strokeDashoffset={circ / 4 - incomeDash} strokeLinecap="butt" />
+          )}
+        </svg>
+        <div className="pwa-mini-donut-center">
+          <span style={{ fontSize: 9, color: 'var(--muted)' }}>Balance</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: balance >= 0 ? 'var(--green)' : 'var(--red)' }}>
+            {balance >= 0 ? '+' : ''}{MXN(balance)}
+          </span>
+        </div>
+      </div>
+      <div className="pwa-mini-donut-legend">
+        <span className="pwa-mini-legend-item">
+          <span style={{ width:8, height:8, borderRadius:'50%', background:'rgba(74,222,128,0.8)', display:'inline-block', marginRight:5 }}/>
+          <span style={{ fontSize:11, color:'var(--muted)' }}>Ingresos</span>
+          <span style={{ fontSize:11, fontWeight:600, color:'var(--green)', marginLeft:4 }}>{MXN(ingresos)}</span>
+        </span>
+        <span className="pwa-mini-legend-item">
+          <span style={{ width:8, height:8, borderRadius:'50%', background:'rgba(251,113,133,0.8)', display:'inline-block', marginRight:5 }}/>
+          <span style={{ fontSize:11, color:'var(--muted)' }}>Gastos</span>
+          <span style={{ fontSize:11, fontWeight:600, color:'var(--red)', marginLeft:4 }}>{MXN(gastos)}</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
 // ── Periodo financiero (igual lógica que la app de escritorio) ────────────────
 function getFinancialPeriod(monthKey, cutoff) {
   const [year, month] = monthKey.split('-').map(Number);
@@ -1081,6 +1135,19 @@ export default function App() {
   const [tema, setTema] = useState('dark');
   const [showSearch, setShowSearch] = useState(false);
   const { toast: undoToast, pushUndo, handleUndo, handleDismiss } = useUndo();
+
+  // Navegación de mes: flechas + picker
+  function navigateMonth(dir) {
+    const [y, m] = selectedMonth.split('-').map(Number);
+    const next = dir === 'prev'
+      ? (m === 1 ? `${y-1}-12` : `${y}-${String(m-1).padStart(2,'0')}`)
+      : (m === 12 ? `${y+1}-01` : `${y}-${String(m+1).padStart(2,'0')}`);
+    setSelectedMonth(next);
+  }
+  function selectedMonthLabel() {
+    const [y, m] = selectedMonth.split('-').map(Number);
+    return new Date(y, m-1, 1).toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+  }
   const [recoveryMode, setRecoveryMode] = useState(_earlyRecovery); // true cuando viene del link de reset
 
   // Tema — sincronizar con SO y localStorage
@@ -1357,8 +1424,25 @@ export default function App() {
               {(() => { const h=new Date().getHours(); return h<12?'Buenos días':h<19?'Buenas tardes':'Buenas noches'; })()}, {profileName.split(' ')[0]}
             </div>
           )}
-          <input className="pwa-month-picker" type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} aria-label="Mes" />
-          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1, textTransform: 'capitalize' }}>{month}</div>
+          <div className="pwa-month-nav">
+            <button type="button" className="pwa-month-nav-btn" onClick={() => navigateMonth('prev')} aria-label="Mes anterior">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <label className="pwa-month-label-wrap">
+              <span className="pwa-month-label-text">{selectedMonthLabel()}</span>
+              <input
+                type="month"
+                value={selectedMonth}
+                onChange={e => e.target.value && setSelectedMonth(e.target.value)}
+                className="pwa-month-picker-hidden"
+                aria-label="Seleccionar mes"
+              />
+            </label>
+            <button type="button" className="pwa-month-nav-btn" onClick={() => navigateMonth('next')} aria-label="Mes siguiente">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, textTransform: 'capitalize' }}>{month}</div>
         </div>
         <div className="pwa-header-right">
           {/* Búsqueda */}
@@ -1400,6 +1484,11 @@ export default function App() {
           </div>
         </div>
       </div>
+
+      {/* Mini gráfica ingresos vs gastos */}
+      {(metrics.ingresos > 0 || metrics.gastos > 0) && (
+        <PWAMiniDonut ingresos={metrics.ingresos} gastos={metrics.gastos} />
+      )}
 
       {/* Botones de acción */}
       <div className="pwa-actions">
