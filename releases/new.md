@@ -1,3 +1,0 @@
-  - Splash screen al iniciar
-  - Auto-actualizaciones automáticas
-  - Instalador profesional para Windows
