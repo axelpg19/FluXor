@@ -76,19 +76,6 @@ Puedes instalarla directamente desde el navegador en tu dispositivo móvil o com
 - Menú nativo en español con opciones funcionales
 - Branding actualizado a Fluxorfinance
 
-### v2.6.14 — 2026-06-04
-- Fix en el input del día de corte
-- Eliminado Microsoft como método de autenticación
-
-### v2.6.9 — 2026-06-04
-- Auto-actualizaciones con GitHub Releases
-- Splash screen al iniciar con estados de carga animados
-- Instalador profesional NSIS para Windows
-
-### v2.6.2 — 2026-06-03
-- Rediseño del dashboard
-- Tutorial actualizado
-
 ---
 
 ## Contacto
