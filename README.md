@@ -81,6 +81,16 @@ FluXor es una app de escritorio para Windows que te permite llevar el control de
 
 ---
 
+## También disponible como PWA
+
+FluXor tiene una versión web progresiva accesible desde cualquier navegador, sin necesidad de instalación.
+
+🌐 **[flu-xor.vercel.app](https://flu-xor.vercel.app)**
+
+Puedes instalarla directamente desde el navegador en tu dispositivo móvil o computadora para tener acceso rápido sin abrir el navegador cada vez.
+
+---
+
 ## Contacto
 
 [fluxorfinance@gmail.com](mailto:fluxorfinance@gmail.com)
