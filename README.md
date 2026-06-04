@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/logo-fluxor.png" width="96" height="96" style="border-radius: 22px" />
+  <img src="https://raw.githubusercontent.com/axelpg19/FluXor/main/assets/logo-fluxor.png" width="96" height="96" style="border-radius: 22px" />
   <h1>FluXor</h1>
   <p><strong>Control total de tus finanzas personales</strong></p>
 
