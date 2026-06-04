@@ -1,16 +1,15 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/axelpg19/FluXor/main/assets/logo-fluxor.png" width="96" height="96" style="border-radius: 22px" />
+  <img src="https://raw.githubusercontent.com/axelpg19/FluXor/main/pwa/public/logo-fluxor.png" width="96" height="96" style="border-radius: 22px" />
   <h1>FluXor</h1>
   <p><strong>Control total de tus finanzas personales</strong></p>
 
   ![Version](https://img.shields.io/badge/version-2.6.17-blue?style=flat-square)
   ![Platform](https://img.shields.io/badge/platform-Windows-informational?style=flat-square)
-  ![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
   ![Status](https://img.shields.io/badge/estado-estable-brightgreen?style=flat-square)
 
   <br/>
 
-  [⬇️ Descargar para Windows](https://github.com/axelpg19/FluXor/releases/latest) · [📋 Ver cambios](#changelog) · [🐛 Reportar un bug](https://github.com/axelpg19/FluXor/issues)
+  [⬇️ Descargar para Windows](https://github.com/axelpg19/FluXor/releases/latest) · [🐛 Reportar un bug](https://github.com/axelpg19/FluXor/issues)
 
 </div>
 
@@ -60,74 +59,31 @@ FluXor es una app de escritorio para Windows que te permite llevar el control de
 
 ---
 
-## Tecnología
-
-| Componente | Tecnología |
-|---|---|
-| Desktop | Electron 39 |
-| UI | React 19 + Vite 7 |
-| Base de datos | SQLite (better-sqlite3) |
-| Sincronización | Supabase |
-| PWA | Vercel |
-| Instalador | electron-builder + NSIS |
-| Auto-update | electron-updater + GitHub Releases |
-
----
-
-## Desarrollo local
-
-```bash
-# Clonar el repositorio
-git clone https://github.com/axelpg19/FluXor.git
-cd FluXor
-
-# Instalar dependencias
-pnpm install
-
-# Iniciar en modo desarrollo
-pnpm start
-```
-
-### Generar instalador
-
-```bash
-# Recompilar nativos y generar .exe
-.\node_modules\.bin\electron-builder install-app-deps
-.\node_modules\.bin\electron-builder --win
-```
-
-El instalador se genera en la carpeta `release/`.
-
----
-
 ## Changelog
 
 ### v2.6.17 — 2026-06-04
 - Día de corte inteligente por mes (respeta febrero, meses de 30 días, etc.)
-- Menú nativo de la app en español con opciones funcionales
+- Menú nativo en español con opciones funcionales
 - Branding actualizado a Fluxorfinance
-- Copyright actualizado
 
 ### v2.6.14 — 2026-06-04
-- Fix en el input del día de corte — ahora permite edición libre con borrar/suprimir
+- Fix en el input del día de corte
 - Eliminado Microsoft como método de autenticación
 
 ### v2.6.9 — 2026-06-04
-- Auto-actualizaciones con electron-updater + GitHub Releases
+- Auto-actualizaciones con GitHub Releases
 - Splash screen al iniciar con estados de carga animados
 - Instalador profesional NSIS para Windows
-- Fix de encoding UTF-8 en mensajes del chat
 
 ### v2.6.2 — 2026-06-03
-- Rediseño del dashboard: Chat + Pendientes arriba, 3 gráficas abajo
-- Paneles de altura fija para una presentación consistente
-- Tutorial actualizado para reflejar el estado actual de la app
+- Rediseño del dashboard
+- Tutorial actualizado
 
 ---
 
-## Autor
+## Contacto
 
-Desarrollado por **Axel Ponce** · [fluxorfinance@gmail.com](mailto:fluxorfinance@gmail.com)
+[fluxorfinance@gmail.com](mailto:fluxorfinance@gmail.com)
 
 ---
 
