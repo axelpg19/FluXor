@@ -23,17 +23,17 @@ FluXor es una app de escritorio para Windows que te permite llevar el control de
 
 ## Características principales
 
-- **Chat financiero inteligente** — registra gastos, ingresos, transferencias y pendientes con lenguaje natural
-- **Multi-moneda** — soporte para MXN, USD, EUR y más, con tipos de cambio en tiempo real
-- **Tarjetas de crédito** — gestión de cortes, MSI y periodos automáticos
-- **Presupuestos** — define límites globales o por categoría con alertas visuales
-- **Gastos recurrentes** — cargos fijos generados automáticamente cada mes
-- **Cobros pendientes** — registra y liquida parcial o totalmente lo que te deben
-- **Metas de ahorro** — crea y sigue el progreso de tus objetivos financieros
-- **Gráficas del periodo** — ingresos vs gastos, tendencia y gastos por categoría
-- **Sincronización en la nube** — respaldo automático con Supabase
-- **Offline-first** — funciona sin internet, sincroniza cuando hay conexión
-- **Auto-actualizaciones** — detecta e instala nuevas versiones automáticamente
+- **Chat financiero inteligente** - registra gastos, ingresos, transferencias y pendientes con lenguaje natural
+- **Multi-moneda** - soporte para MXN, USD, EUR y más, con tipos de cambio en tiempo real
+- **Tarjetas de crédito** - gestión de cortes, MSI y periodos automáticos
+- **Presupuestos** - define límites globales o por categoría con alertas visuales
+- **Gastos recurrentes** - cargos fijos generados automáticamente cada mes
+- **Cobros pendientes** - registra y liquida parcial o totalmente lo que te deben
+- **Metas de ahorro** - crea y sigue el progreso de tus objetivos financieros
+- **Gráficas del periodo** - ingresos vs gastos, tendencia y gastos por categoría
+- **Sincronización en la nube** - respaldo automático con Supabase
+- **Offline-first** - funciona sin internet, sincroniza cuando hay conexión
+- **Auto-actualizaciones** - detecta e instala nuevas versiones automáticamente
 
 ---
 
