@@ -373,9 +373,9 @@ function PWASearch({userId,onClose}){
       const {data,error}=await qb;
       if(error){
         const {data:fb}=await supabase.from('movimientos').select('id,tipo,monto,categoria,metodo,fuente,destino,subtipo,fecha,moneda,monto_original,periodo_override,deleted_at').eq('user_id',userId).ilike('categoria',`%${q}%`).order('fecha',{ascending:false}).limit(60);
-        setResults((fb||[]).filter(r=>!r.deleted_at));
+        setResults((fb||[]).filter(r=>!r.deleted_at||r.deleted_at===''));
       } else {
-        setResults((data||[]).filter(r=>!r.deleted_at));
+        setResults((data||[]).filter(r=>!r.deleted_at||r.deleted_at===''));
       }
       setSelected(0); setLoading(false);
     },300);
@@ -560,9 +560,17 @@ function CobrosTab({userId,onRefresh}){
   const [liquidating,setLiquidating]=useState(null),[parcialId,setParcialId]=useState(null),[parcialMonto,setParcialMonto]=useState('');
   const load=useCallback(async()=>{
     setLoading(true);
-    const {data}=await supabase.from('movimientos').select('*').eq('user_id',userId).eq('tipo','pendiente').is('deleted_at',null).order('fecha',{ascending:false});
-    setPendientes(data||[]);setLoading(false);
+    const {data}=await supabase.from('movimientos')
+      .select('*')
+      .eq('user_id',userId)
+      .eq('tipo','pendiente')
+      .or('deleted_at.is.null,deleted_at.eq.')  // NULL o string vacío
+      .order('fecha',{ascending:false});
+    // Filtrar también en cliente por si acaso
+    const activos=(data||[]).filter(p=>!p.deleted_at||p.deleted_at==='');
+    setPendientes(activos);setLoading(false);
   },[userId]);
+  useEffect(()=>{load();},[load]);
   useEffect(()=>{load();},[load]);
   async function liquidar(mov,monto){
     setLiquidating(mov.id);
@@ -571,11 +579,10 @@ function CobrosTab({userId,onRefresh}){
     setParcialId(null);setParcialMonto('');await load();onRefresh();setLiquidating(null);
   }
   if(loading)return <div className="pwa-tab-content"><div className="pwa-spinner"/></div>;
-  const activos=pendientes.filter(p=>!p.deleted_at);
   return <div className="pwa-tab-content">
-    <div className="pwa-section-title">Cobros pendientes</div>
-    {activos.length===0&&<div className="pwa-empty">Sin cobros pendientes.<br/>Usa el botón "Pendiente" en Inicio para registrar.</div>}
-    {activos.map(p=><div key={p.id} className="pwa-card">
+    <div className="pwa-section-title">Pendientes</div>
+    {pendientes.length===0&&<div className="pwa-empty">Sin cobros pendientes.<br/>Usa el botón "Pendiente" en Inicio para registrar.</div>}
+    {pendientes.map(p=><div key={p.id} className="pwa-card">
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
         <div>
           <div style={{fontWeight:700,fontSize:15}}>{p.categoria}</div>
@@ -602,12 +609,20 @@ function FijosTab({userId}){
   const [recurrentes,setRecurrentes]=useState([]),[loading,setLoading]=useState(true);
   const load=useCallback(async()=>{
     setLoading(true);
-    const {data}=await supabase.from('recurrentes').select('*').eq('user_id',userId).is('deleted_at',null).order('categoria',{ascending:true});
-    // Deduplicar por categoria+monto+dia para evitar duplicados del sync
-    const seen=new Set();
-    const deduped=(data||[]).filter(r=>{
-      const key=`${r.categoria}|${r.monto}|${r.dia}|${r.activo}`;
-      if(seen.has(key))return false; seen.add(key); return true;
+    const {data}=await supabase.from('recurrentes')
+      .select('*')
+      .eq('user_id',userId)
+      .or('deleted_at.is.null,deleted_at.eq.')
+      .order('categoria',{ascending:true});
+    // Filtrar eliminados en cliente y deduplicar
+    const vivos=(data||[]).filter(r=>!r.deleted_at||r.deleted_at==='');
+    // Deduplicar: preferir los que tienen sync_id y categoria definida
+    const seenSyncId=new Set(), seenContent=new Set();
+    const deduped=vivos.filter(r=>{
+      if(r.sync_id){if(seenSyncId.has(r.sync_id))return false;seenSyncId.add(r.sync_id);}
+      if(!r.categoria)return false; // omitir sin nombre
+      const key=`${r.categoria}|${r.monto}|${r.dia}|${r.activo}|${r.metodo}`;
+      if(seenContent.has(key))return false; seenContent.add(key); return true;
     });
     setRecurrentes(deduped);setLoading(false);
   },[userId]);
@@ -747,12 +762,12 @@ export default function App(){
     if(!session?.user?.id)return;
     const period=getFinancialPeriod(selectedMonth,cutoffDay);
     const [normalRes,overrideRes,cardsRes]=await Promise.all([
-      supabase.from('movimientos').select('*').eq('user_id',session.user.id).is('deleted_at',null).is('periodo_override',null).gte('fecha',period.start).lte('fecha',period.end).order('fecha',{ascending:false}).limit(200),
-      supabase.from('movimientos').select('*').eq('user_id',session.user.id).is('deleted_at',null).eq('periodo_override',selectedMonth).order('fecha',{ascending:false}).limit(80),
-      supabase.from('tarjetas').select('*').eq('user_id',session.user.id).is('deleted_at',null).order('nombre',{ascending:true}),
+      supabase.from('movimientos').select('*').eq('user_id',session.user.id).or('deleted_at.is.null,deleted_at.eq.').is('periodo_override',null).gte('fecha',period.start).lte('fecha',period.end).order('fecha',{ascending:false}).limit(200),
+      supabase.from('movimientos').select('*').eq('user_id',session.user.id).or('deleted_at.is.null,deleted_at.eq.').eq('periodo_override',selectedMonth).order('fecha',{ascending:false}).limit(80),
+      supabase.from('tarjetas').select('*').eq('user_id',session.user.id).or('deleted_at.is.null,deleted_at.eq.').order('nombre',{ascending:true}),
     ]);
-    // Deduplicar por id
-    const all=[...(normalRes.data||[]),...(overrideRes.data||[])];
+    // Deduplicar por id y filtrar deleted_at en cliente también
+    const all=[...(normalRes.data||[]),...(overrideRes.data||[])].filter(m=>!m.deleted_at||m.deleted_at==='');
     const seen=new Set(); const data=all.filter(m=>{if(seen.has(m.id))return false;seen.add(m.id);return true;}).sort((a,b)=>b.fecha.localeCompare(a.fecha));
     setMovements(data);
     const ingresos=data.filter(m=>m.tipo==='ingreso').reduce((s,m)=>s+m.monto,0);
@@ -787,7 +802,7 @@ export default function App(){
   const TABS=[
     {id:'inicio',   label:'Inicio',      icon:<Ico.home/>},
     {id:'movs',     label:'Movimientos', icon:<Ico.list/>},
-    {id:'cobros',   label:'Cobros',      icon:<Ico.clock/>},
+    {id:'cobros',   label:'Pendientes',  icon:<Ico.clock/>},
     {id:'fijos',    label:'Fijos',       icon:<Ico.repeat/>},
   ];
 
