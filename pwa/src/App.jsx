@@ -564,10 +564,9 @@ function CobrosTab({userId,onRefresh}){
       .select('*')
       .eq('user_id',userId)
       .eq('tipo','pendiente')
-      .or('deleted_at.is.null,deleted_at.eq.')  // NULL o string vacío
       .order('fecha',{ascending:false});
-    // Filtrar también en cliente por si acaso
-    const activos=(data||[]).filter(p=>!p.deleted_at||p.deleted_at==='');
+    // Filtrar en cliente
+    const activos=(data||[]).filter(p=>!p.deleted_at||p.deleted_at===null||p.deleted_at==='');
     setPendientes(activos);setLoading(false);
   },[userId]);
   useEffect(()=>{load();},[load]);
@@ -612,10 +611,9 @@ function FijosTab({userId}){
     const {data}=await supabase.from('recurrentes')
       .select('*')
       .eq('user_id',userId)
-      .or('deleted_at.is.null,deleted_at.eq.')
       .order('categoria',{ascending:true});
-    // Filtrar eliminados en cliente y deduplicar
-    const vivos=(data||[]).filter(r=>!r.deleted_at||r.deleted_at==='');
+    // Filtrar eliminados en cliente
+    const vivos=(data||[]).filter(r=>!r.deleted_at||r.deleted_at===null||r.deleted_at==='');
     // Deduplicar: preferir los que tienen sync_id y categoria definida
     const seenSyncId=new Set(), seenContent=new Set();
     const deduped=vivos.filter(r=>{
@@ -762,12 +760,12 @@ export default function App(){
     if(!session?.user?.id)return;
     const period=getFinancialPeriod(selectedMonth,cutoffDay);
     const [normalRes,overrideRes,cardsRes]=await Promise.all([
-      supabase.from('movimientos').select('*').eq('user_id',session.user.id).or('deleted_at.is.null,deleted_at.eq.').is('periodo_override',null).gte('fecha',period.start).lte('fecha',period.end).order('fecha',{ascending:false}).limit(200),
-      supabase.from('movimientos').select('*').eq('user_id',session.user.id).or('deleted_at.is.null,deleted_at.eq.').eq('periodo_override',selectedMonth).order('fecha',{ascending:false}).limit(80),
-      supabase.from('tarjetas').select('*').eq('user_id',session.user.id).or('deleted_at.is.null,deleted_at.eq.').order('nombre',{ascending:true}),
+      supabase.from('movimientos').select('*').eq('user_id',session.user.id).is('periodo_override',null).gte('fecha',period.start).lte('fecha',period.end).order('fecha',{ascending:false}).limit(200),
+      supabase.from('movimientos').select('*').eq('user_id',session.user.id).eq('periodo_override',selectedMonth).order('fecha',{ascending:false}).limit(80),
+      supabase.from('tarjetas').select('*').eq('user_id',session.user.id).order('nombre',{ascending:true}),
     ]);
-    // Deduplicar por id y filtrar deleted_at en cliente también
-    const all=[...(normalRes.data||[]),...(overrideRes.data||[])].filter(m=>!m.deleted_at||m.deleted_at==='');
+    // Filtrar deleted_at completamente en cliente — más confiable que el filtro de Supabase
+    const all=[...(normalRes.data||[]),...(overrideRes.data||[])].filter(m=>!m.deleted_at||m.deleted_at===null||m.deleted_at==='');
     const seen=new Set(); const data=all.filter(m=>{if(seen.has(m.id))return false;seen.add(m.id);return true;}).sort((a,b)=>b.fecha.localeCompare(a.fecha));
     setMovements(data);
     const ingresos=data.filter(m=>m.tipo==='ingreso').reduce((s,m)=>s+m.monto,0);
