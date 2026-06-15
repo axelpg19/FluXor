@@ -361,20 +361,34 @@ function PWASearch({userId,onClose}){
       setLoading(true);
       const q=query.trim();
       const isNum=q.length>0&&!isNaN(Number(q.replace(/[$,\s]/g,'')))&&q.replace(/[$,\s]/g,'').length>0;
-      let qb=supabase.from('movimientos')
-        .select('sync_id,tipo,monto,categoria,metodo,fuente,destino,subtipo,fecha,moneda,monto_original,periodo_override,deleted_at')
-        .eq('user_id',userId).order('fecha',{ascending:false}).limit(200);
-      if(isNum){
-        const n=Number(q.replace(/[$,\s]/g,''));
-        if(n>0)qb=qb.gte('monto',n*0.85).lte('monto',n*1.15);
-      } else {
-        qb=qb.or([`categoria.ilike.%${q}%`,`fuente.ilike.%${q}%`,`metodo.ilike.%${q}%`,`subtipo.ilike.%${q}%`,`destino.ilike.%${q}%`].join(','));
+
+      try {
+        let rows=[];
+        if(isNum){
+          const n=Number(q.replace(/[$,\s]/g,''));
+          if(n>0){
+            const {data}=await supabase.from('movimientos')
+              .select('sync_id,tipo,monto,categoria,metodo,fuente,destino,subtipo,fecha,moneda,monto_original,periodo_override,deleted_at')
+              .eq('user_id',userId).gte('monto',n*0.85).lte('monto',n*1.15)
+              .order('fecha',{ascending:false}).limit(100);
+            rows=data||[];
+          }
+        } else {
+          // Buscar por categoría primero (más común), luego merge con otros campos
+          const [r1,r2,r3]=await Promise.all([
+            supabase.from('movimientos').select('sync_id,tipo,monto,categoria,metodo,fuente,destino,subtipo,fecha,moneda,monto_original,periodo_override,deleted_at').eq('user_id',userId).ilike('categoria',`%${q}%`).order('fecha',{ascending:false}).limit(80),
+            supabase.from('movimientos').select('sync_id,tipo,monto,categoria,metodo,fuente,destino,subtipo,fecha,moneda,monto_original,periodo_override,deleted_at').eq('user_id',userId).ilike('fuente',`%${q}%`).order('fecha',{ascending:false}).limit(40),
+            supabase.from('movimientos').select('sync_id,tipo,monto,categoria,metodo,fuente,destino,subtipo,fecha,moneda,monto_original,periodo_override,deleted_at').eq('user_id',userId).ilike('metodo',`%${q}%`).order('fecha',{ascending:false}).limit(40),
+          ]);
+          const all=[...(r1.data||[]),...(r2.data||[]),...(r3.data||[])];
+          // Deduplicar por sync_id
+          const seen=new Set();
+          rows=all.filter(r=>{const k=r.sync_id||r.categoria+r.fecha;if(seen.has(k))return false;seen.add(k);return true;});
+        }
+        setResults(rows.filter(r=>!r.deleted_at).sort((a,b)=>b.fecha.localeCompare(a.fecha)));
+      } catch(e) {
+        setResults([]);
       }
-      const {data,error}=await qb;
-      const raw=error
-        ? (await supabase.from('movimientos').select('sync_id,tipo,monto,categoria,metodo,fuente,destino,subtipo,fecha,moneda,monto_original,periodo_override,deleted_at').eq('user_id',userId).ilike('categoria',`%${q}%`).order('fecha',{ascending:false}).limit(100)).data||[]
-        : data||[];
-      setResults(raw.filter(r=>!r.deleted_at));
       setSelected(0); setLoading(false);
     },300);
     return ()=>clearTimeout(t);
@@ -850,7 +864,9 @@ export default function App(){
       </div>
       <div className="pwa-header-right">
         <button className="pwa-user-btn" onClick={()=>setShowSearch(true)} title="Buscar"><Ico.search/></button>
-        <button className="pwa-user-btn" onClick={toggleTema} title="Tema">{tema==='dark'?<Ico.sun/>:<Ico.moon/>}</button>
+        <button className="pwa-user-btn" onClick={toggleTema} title="Tema">
+          {tema==='dark'?<Ico.sun/>:tema==='light'?<Ico.moon/>:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>}
+        </button>
         <button className="pwa-user-btn" onClick={()=>setActiveSheet('user')} title="Perfil"><Ico.user/></button>
       </div>
     </header>
