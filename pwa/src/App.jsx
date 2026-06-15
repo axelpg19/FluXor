@@ -777,17 +777,16 @@ export default function App(){
       supabase.from('movimientos').select('*').eq('user_id',session.user.id).eq('periodo_override',selectedMonth).order('fecha',{ascending:false}).limit(200),
       supabase.from('tarjetas').select('*').eq('user_id',session.user.id).order('nombre',{ascending:true}),
     ]);
-    console.log('[PWA] periodo:', period.start, '-', period.end);
-    console.log('[PWA] normalRes:', normalRes.data?.length, normalRes.error?.message);
-    console.log('[PWA] overrideRes:', overrideRes.data?.length, overrideRes.error?.message);
-    console.log('[PWA] sample:', normalRes.data?.slice(0,3).map(m=>({fecha:m.fecha,cat:m.categoria,del:m.deleted_at,tipo:m.tipo})));
     const deletedCount = (normalRes.data?.filter(m=>m.deleted_at).length||0) + (overrideRes.data?.filter(m=>m.deleted_at).length||0);
-    console.log('[PWA] deleted count:', deletedCount);
     const all=[...(normalRes.data||[]),...(overrideRes.data||[])].filter(m=>!m.deleted_at);
-    console.log('[PWA] all before dedup:', all.length);
-    console.log('[PWA] sample ids:', all.slice(0,5).map(m=>({id:m.id,type:typeof m.id,cat:m.categoria})));
-    const seen=new Set(); const data=all.filter(m=>{if(seen.has(m.id))return false;seen.add(m.id);return true;}).sort((a,b)=>b.fecha.localeCompare(a.fecha));
-    console.log('[PWA] after dedup:', data.length);
+    // Deduplicar por sync_id (el id local no existe en Supabase)
+    const seen=new Set();
+    const data=all.filter(m=>{
+      const key=m.sync_id||m.categoria+m.fecha+m.monto;
+      if(seen.has(key))return false;
+      seen.add(key);
+      return true;
+    }).sort((a,b)=>b.fecha.localeCompare(a.fecha));
     setMovements(data);
     const ingresos=data.filter(m=>m.tipo==='ingreso').reduce((s,m)=>s+m.monto,0);
     const gastos=data.filter(m=>m.tipo==='gasto').reduce((s,m)=>s+m.monto,0);
