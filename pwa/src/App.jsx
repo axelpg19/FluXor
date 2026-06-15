@@ -780,9 +780,11 @@ export default function App(){
     console.log('[PWA] periodo:', period.start, '-', period.end);
     console.log('[PWA] normalRes:', normalRes.data?.length, normalRes.error?.message);
     console.log('[PWA] overrideRes:', overrideRes.data?.length, overrideRes.error?.message);
-    console.log('[PWA] sample:', normalRes.data?.slice(0,2).map(m=>({fecha:m.fecha,cat:m.categoria,del:m.deleted_at})));
-    // Filtrar deleted_at en cliente
-    const all=[...(normalRes.data||[]),...(overrideRes.data||[])].filter(m=>!m.deleted_at);
+    console.log('[PWA] sample:', normalRes.data?.slice(0,3).map(m=>({fecha:m.fecha,cat:m.categoria,del:m.deleted_at,tipo:m.tipo})));
+    console.log('[PWA] deleted count normal:', normalRes.data?.filter(m=>m.deleted_at).length);
+    console.log('[PWA] deleted count override:', overrideRes.data?.filter(m=>m.deleted_at).length);
+    // NO filtrar deleted_at por ahora para ver cuántos quedan
+    const all=[...(normalRes.data||[]),...(overrideRes.data||[])];
     const seen=new Set(); const data=all.filter(m=>{if(seen.has(m.id))return false;seen.add(m.id);return true;}).sort((a,b)=>b.fecha.localeCompare(a.fecha));
     setMovements(data);
     const ingresos=data.filter(m=>m.tipo==='ingreso').reduce((s,m)=>s+m.monto,0);
