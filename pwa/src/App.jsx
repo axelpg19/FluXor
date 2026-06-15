@@ -758,6 +758,19 @@ export default function App(){
   // Data
   const loadData=useCallback(async()=>{
     if(!session?.user?.id)return;
+
+    // Cargar día de corte desde Supabase si aún no lo tenemos
+    if(cutoffDay===1){
+      try {
+        const {data:cfg}=await supabase.from('configuracion')
+          .select('valor').eq('user_id',session.user.id).eq('clave','dia_corte').single();
+        if(cfg?.valor){
+          const val=Number(cfg.valor);
+          if(val>=2&&val<=28){setCutoffDay(val);return;} // re-trigger loadData con el valor correcto
+        }
+      } catch { /* usar default 1 */ }
+    }
+
     const period=getFinancialPeriod(selectedMonth,cutoffDay);
     const [normalRes,overrideRes,cardsRes]=await Promise.all([
       supabase.from('movimientos').select('*').eq('user_id',session.user.id).is('periodo_override',null).gte('fecha',period.start).lte('fecha',period.end).order('fecha',{ascending:false}).limit(500),
