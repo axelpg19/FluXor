@@ -781,11 +781,12 @@ export default function App(){
     console.log('[PWA] normalRes:', normalRes.data?.length, normalRes.error?.message);
     console.log('[PWA] overrideRes:', overrideRes.data?.length, overrideRes.error?.message);
     console.log('[PWA] sample:', normalRes.data?.slice(0,3).map(m=>({fecha:m.fecha,cat:m.categoria,del:m.deleted_at,tipo:m.tipo})));
-    console.log('[PWA] deleted count normal:', normalRes.data?.filter(m=>m.deleted_at).length);
-    console.log('[PWA] deleted count override:', overrideRes.data?.filter(m=>m.deleted_at).length);
-    // NO filtrar deleted_at por ahora para ver cuántos quedan
-    const all=[...(normalRes.data||[]),...(overrideRes.data||[])];
+    const deletedCount = (normalRes.data?.filter(m=>m.deleted_at).length||0) + (overrideRes.data?.filter(m=>m.deleted_at).length||0);
+    console.log('[PWA] deleted count:', deletedCount);
+    const all=[...(normalRes.data||[]),...(overrideRes.data||[])].filter(m=>!m.deleted_at);
     const seen=new Set(); const data=all.filter(m=>{if(seen.has(m.id))return false;seen.add(m.id);return true;}).sort((a,b)=>b.fecha.localeCompare(a.fecha));
+    console.log('[PWA] after filter+dedup:', data.length, 'movements');
+    console.log('[PWA] first 3:', data.slice(0,3).map(m=>({id:m.id,fecha:m.fecha,cat:m.categoria})));
     setMovements(data);
     const ingresos=data.filter(m=>m.tipo==='ingreso').reduce((s,m)=>s+m.monto,0);
     const gastos=data.filter(m=>m.tipo==='gasto').reduce((s,m)=>s+m.monto,0);
