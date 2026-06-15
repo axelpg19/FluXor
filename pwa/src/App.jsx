@@ -777,7 +777,11 @@ export default function App(){
       supabase.from('movimientos').select('*').eq('user_id',session.user.id).eq('periodo_override',selectedMonth).order('fecha',{ascending:false}).limit(200),
       supabase.from('tarjetas').select('*').eq('user_id',session.user.id).order('nombre',{ascending:true}),
     ]);
-    // Filtrar deleted_at completamente en cliente — cualquier valor truthy significa eliminado
+    console.log('[PWA] periodo:', period.start, '-', period.end);
+    console.log('[PWA] normalRes:', normalRes.data?.length, normalRes.error?.message);
+    console.log('[PWA] overrideRes:', overrideRes.data?.length, overrideRes.error?.message);
+    console.log('[PWA] sample:', normalRes.data?.slice(0,2).map(m=>({fecha:m.fecha,cat:m.categoria,del:m.deleted_at})));
+    // Filtrar deleted_at en cliente
     const all=[...(normalRes.data||[]),...(overrideRes.data||[])].filter(m=>!m.deleted_at);
     const seen=new Set(); const data=all.filter(m=>{if(seen.has(m.id))return false;seen.add(m.id);return true;}).sort((a,b)=>b.fecha.localeCompare(a.fecha));
     setMovements(data);
