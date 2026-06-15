@@ -362,8 +362,8 @@ function PWASearch({userId,onClose}){
       const q=query.trim();
       const isNum=q.length>0&&!isNaN(Number(q.replace(/[$,\s]/g,'')))&&q.replace(/[$,\s]/g,'').length>0;
       let qb=supabase.from('movimientos')
-        .select('id,tipo,monto,categoria,metodo,fuente,destino,subtipo,fecha,moneda,monto_original,periodo_override,deleted_at')
-        .eq('user_id',userId).order('fecha',{ascending:false}).limit(150);
+        .select('sync_id,tipo,monto,categoria,metodo,fuente,destino,subtipo,fecha,moneda,monto_original,periodo_override,deleted_at')
+        .eq('user_id',userId).order('fecha',{ascending:false}).limit(200);
       if(isNum){
         const n=Number(q.replace(/[$,\s]/g,''));
         if(n>0)qb=qb.gte('monto',n*0.85).lte('monto',n*1.15);
@@ -371,12 +371,10 @@ function PWASearch({userId,onClose}){
         qb=qb.or([`categoria.ilike.%${q}%`,`fuente.ilike.%${q}%`,`metodo.ilike.%${q}%`,`subtipo.ilike.%${q}%`,`destino.ilike.%${q}%`].join(','));
       }
       const {data,error}=await qb;
-      if(error){
-        const {data:fb}=await supabase.from('movimientos').select('id,tipo,monto,categoria,metodo,fuente,destino,subtipo,fecha,moneda,monto_original,periodo_override,deleted_at').eq('user_id',userId).ilike('categoria',`%${q}%`).order('fecha',{ascending:false}).limit(60);
-        setResults((fb||[]).filter(r=>!r.deleted_at||r.deleted_at===''));
-      } else {
-        setResults((data||[]).filter(r=>!r.deleted_at||r.deleted_at===''));
-      }
+      const raw=error
+        ? (await supabase.from('movimientos').select('sync_id,tipo,monto,categoria,metodo,fuente,destino,subtipo,fecha,moneda,monto_original,periodo_override,deleted_at').eq('user_id',userId).ilike('categoria',`%${q}%`).order('fecha',{ascending:false}).limit(100)).data||[]
+        : data||[];
+      setResults(raw.filter(r=>!r.deleted_at));
       setSelected(0); setLoading(false);
     },300);
     return ()=>clearTimeout(t);
@@ -398,7 +396,7 @@ function PWASearch({userId,onClose}){
           const mk=(r.periodo_override||r.fecha).slice(0,7);
           const [y,m]=mk.split('-').map(Number);
           const label=new Date(y,m-1,1).toLocaleDateString('es-MX',{month:'short',year:'numeric'});
-          return <button key={r.id} className={`pwa-search-item ${i===selected?'active':''}`} onClick={()=>onClose(mk)}>
+          return <button key={r.sync_id||r.categoria+r.fecha} className={`pwa-search-item ${i===selected?'active':''}`} onClick={()=>onClose(mk)}>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:14,fontWeight:600,color:'var(--text)'}}>{r.categoria}</div>
               <div style={{fontSize:11,color:'var(--muted)',marginTop:2}}>{r.fecha} · {label}{r.metodo?` · ${r.metodo}`:''}{r.fuente?` · ${r.fuente}`:''}</div>
@@ -574,7 +572,7 @@ function CobrosTab({userId,onRefresh}){
   async function liquidar(mov,monto){
     setLiquidating(mov.id);
     await supabase.from('movimientos').insert({user_id:userId,tipo:'ingreso',monto,categoria:mov.categoria,metodo:mov.metodo||'efectivo',fuente:mov.fuente||null,fecha:todayISO(),estado:'activo',recurrente:0,moneda:'MXN',tipo_cambio:1,synced_at:new Date().toISOString(),sync_id:crypto.randomUUID(),pendiente_origen_id:mov.id});
-    await supabase.from('movimientos').update({deleted_at:new Date().toISOString()}).eq('id',mov.id);
+    await supabase.from('movimientos').update({deleted_at:new Date().toISOString()}).eq('sync_id',mov.sync_id).eq('user_id',userId);
     setParcialId(null);setParcialMonto('');await load();onRefresh();setLiquidating(null);
   }
   if(loading)return <div className="pwa-tab-content"><div className="pwa-spinner"/></div>;
@@ -805,7 +803,7 @@ export default function App(){
     const gas=rest.filter(m=>m.tipo==='gasto').reduce((s,m)=>s+m.monto,0);
     setMetrics({ingresos:ing,gastos:gas,balance:ing-gas});
     pushUndo(`${TYPE_META[mov.tipo]?.label||'Movimiento'} eliminado`,
-      async()=>{await supabase.from('movimientos').update({deleted_at:new Date().toISOString()}).eq('id',mov.id);refresh();},
+      async()=>{await supabase.from('movimientos').update({deleted_at:new Date().toISOString()}).eq('sync_id',mov.sync_id).eq('user_id',session.user.id);refresh();},
       ()=>{setMovements(prev=>[...prev,mov].sort((a,b)=>b.fecha.localeCompare(a.fecha)));refresh();}
     );
   }
