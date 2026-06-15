@@ -784,9 +784,10 @@ export default function App(){
     const deletedCount = (normalRes.data?.filter(m=>m.deleted_at).length||0) + (overrideRes.data?.filter(m=>m.deleted_at).length||0);
     console.log('[PWA] deleted count:', deletedCount);
     const all=[...(normalRes.data||[]),...(overrideRes.data||[])].filter(m=>!m.deleted_at);
+    console.log('[PWA] all before dedup:', all.length);
+    console.log('[PWA] sample ids:', all.slice(0,5).map(m=>({id:m.id,type:typeof m.id,cat:m.categoria})));
     const seen=new Set(); const data=all.filter(m=>{if(seen.has(m.id))return false;seen.add(m.id);return true;}).sort((a,b)=>b.fecha.localeCompare(a.fecha));
-    console.log('[PWA] after filter+dedup:', data.length, 'movements');
-    console.log('[PWA] first 3:', data.slice(0,3).map(m=>({id:m.id,fecha:m.fecha,cat:m.categoria})));
+    console.log('[PWA] after dedup:', data.length);
     setMovements(data);
     const ingresos=data.filter(m=>m.tipo==='ingreso').reduce((s,m)=>s+m.monto,0);
     const gastos=data.filter(m=>m.tipo==='gasto').reduce((s,m)=>s+m.monto,0);
