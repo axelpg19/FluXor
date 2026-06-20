@@ -567,7 +567,7 @@ function MiniDonut({ingresos,gastos}){
 }
 
 // ── Tab: Cobros pendientes ─────────────────────────────────────────────────────
-function CobrosTab({userId,onRefresh}){
+function CobrosTab({userId,onRefresh,period}){
   const [pendientes,setPendientes]=useState([]),[loading,setLoading]=useState(true);
   const [liquidating,setLiquidating]=useState(null),[parcialId,setParcialId]=useState(null),[parcialMonto,setParcialMonto]=useState('');
   const load=useCallback(async()=>{
@@ -576,12 +576,14 @@ function CobrosTab({userId,onRefresh}){
       .select('*')
       .eq('user_id',userId)
       .eq('tipo','pendiente')
+      .eq('estado','activo')
+      .gte('fecha',period.start)
+      .lt('fecha',period.end)
       .order('fecha',{ascending:false});
     // Filtrar en cliente
     const activos=(data||[]).filter(p=>!p.deleted_at);
     setPendientes(activos);setLoading(false);
-  },[userId]);
-  useEffect(()=>{load();},[load]);
+  },[userId,period.start,period.end]);
   useEffect(()=>{load();},[load]);
   async function liquidar(mov,monto){
     setLiquidating(mov.id);
@@ -909,7 +911,7 @@ export default function App(){
         </div>
       </>}
       {activeTab==='movs'&&<MovimientosTab movements={movements} onDelete={handleDelete} onEdit={m=>{setEditingMov(m);setActiveSheet(m.tipo);}} swipedId={swipedId} setSwipedId={setSwipedId}/>}
-      {activeTab==='cobros'&&<CobrosTab userId={session.user.id} onRefresh={refresh}/>}
+      {activeTab==='cobros'&&<CobrosTab userId={session.user.id} onRefresh={refresh} period={period}/>}
       {activeTab==='fijos'&&<FijosTab userId={session.user.id}/>}
     </div>
 
