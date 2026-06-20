@@ -3,7 +3,7 @@
   <h1>FluXor</h1>
   <p><strong>Control total de tus finanzas personales</strong></p>
 
-  ![Version](https://img.shields.io/badge/version-2.6.25-blue?style=flat-square)
+  ![Version](https://img.shields.io/badge/version-2.6.28-blue?style=flat-square)
   ![Platform](https://img.shields.io/badge/platform-Windows-informational?style=flat-square)
   ![Status](https://img.shields.io/badge/estado-estable-brightgreen?style=flat-square)
 
