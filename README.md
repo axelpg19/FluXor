@@ -69,15 +69,6 @@ Puedes instalarla directamente desde el navegador en tu dispositivo móvil o com
 
 ---
 
-## Changelog
-
-### v2.6.17 — 2026-06-04
-- Día de corte inteligente por mes (respeta febrero, meses de 30 días, etc.)
-- Menú nativo en español con opciones funcionales
-- Branding actualizado a Fluxorfinance
-
----
-
 ## Contacto
 
 [fluxorfinance@gmail.com](mailto:fluxorfinance@gmail.com)
