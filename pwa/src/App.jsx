@@ -114,6 +114,8 @@ const Ico = {
   trash:   ()=><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>,
   edit:    ()=><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
   star:    ()=><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>,
+  budget:  ()=><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><circle cx="7" cy="14.5" r="1"/></svg>,
+  target:  ()=><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>,
 };
 
 // ── PasswordStrengthBar ────────────────────────────────────────────────────────
@@ -673,6 +675,163 @@ function FijosTab({userId}){
   </div>;
 }
 
+// ── Tab: Presupuestos ───────────────────────────────────────────────────────────
+function PresupuestosTab({userId,selectedMonth,movements}){
+  const [presupuestos,setPresupuestos]=useState([]),[loading,setLoading]=useState(true);
+
+  const load=useCallback(async()=>{
+    setLoading(true);
+    const {data}=await supabase.from('presupuestos')
+      .select('*')
+      .eq('user_id',userId)
+      .eq('periodo',selectedMonth)
+      .order('categoria',{ascending:true});
+    setPresupuestos((data||[]).filter(p=>!p.deleted_at));
+    setLoading(false);
+  },[userId,selectedMonth]);
+  useEffect(()=>{load();},[load]);
+
+  if(loading)return <div className="pwa-tab-content"><div className="pwa-spinner"/></div>;
+
+  // Gasto total del periodo (para el presupuesto global)
+  const totalGastado=movements.filter(m=>m.tipo==='gasto').reduce((s,m)=>s+m.monto,0);
+
+  // Gasto por categoría (case-insensitive, igual que el desktop)
+  const gastoPorCategoria={};
+  movements.filter(m=>m.tipo==='gasto').forEach(m=>{
+    const key=(m.categoria||'').toLowerCase().trim();
+    gastoPorCategoria[key]=(gastoPorCategoria[key]||0)+m.monto;
+  });
+
+  const global=presupuestos.find(p=>p.categoria==='__GLOBAL__');
+  const categorias=presupuestos.filter(p=>p.categoria!=='__GLOBAL__');
+
+  function renderBudget(p,gastado,key){
+    const pct=p.limite>0?Math.min(100,(gastado/p.limite)*100):0;
+    const excedido=gastado>p.limite;
+    const color=excedido?'var(--red)':pct>=80?'var(--yellow)':'var(--green)';
+    return (
+      <div key={key} className="pwa-card">
+        <div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}>
+          <div style={{fontWeight:700,fontSize:14}}>{p.categoria==='__GLOBAL__'?'Presupuesto global':p.categoria}</div>
+          <div style={{fontSize:13}}>
+            <span style={{color,fontWeight:700}}>{MXN(gastado)}</span>
+            <span style={{color:'var(--muted)'}}> / {MXN(p.limite)}</span>
+          </div>
+        </div>
+        <div style={{height:6,background:'var(--border)',borderRadius:99,overflow:'hidden'}}>
+          <div style={{height:'100%',width:`${pct}%`,background:color,borderRadius:99,transition:'width 0.4s ease'}}/>
+        </div>
+        <div style={{fontSize:11,color:'var(--muted)',marginTop:4}}>
+          {pct.toFixed(0)}% utilizado{excedido?' · límite excedido':''}
+        </div>
+      </div>
+    );
+  }
+
+  return <div className="pwa-tab-content">
+    <div className="pwa-section-title">Presupuesto del periodo</div>
+    {presupuestos.length===0&&<div className="pwa-empty">Sin presupuestos configurados para este mes.<br/>Créalos desde la app de escritorio.</div>}
+    {global&&renderBudget(global,totalGastado,'global')}
+    {categorias.map(p=>{
+      const key=(p.categoria||'').toLowerCase().trim();
+      const gastado=gastoPorCategoria[key]||0;
+      return renderBudget(p,gastado,p.id);
+    })}
+  </div>;
+}
+
+// ── Tab: Metas de ahorro ───────────────────────────────────────────────────────
+function MetasTab({userId}){
+  const [metas,setMetas]=useState([]),[loading,setLoading]=useState(true);
+  const [abonandoId,setAbonandoId]=useState(null),[abonoMonto,setAbonoMonto]=useState('');
+
+  const load=useCallback(async()=>{
+    setLoading(true);
+    const {data}=await supabase.from('metas_ahorro')
+      .select('*')
+      .eq('user_id',userId)
+      .order('completada',{ascending:true})
+      .order('id',{ascending:false});
+    setMetas((data||[]).filter(m=>!m.deleted_at));
+    setLoading(false);
+  },[userId]);
+  useEffect(()=>{load();},[load]);
+
+  async function abonar(meta,monto){
+    const nuevo=Math.min(meta.monto_actual+monto,meta.monto_objetivo);
+    const completada=nuevo>=meta.monto_objetivo;
+    await supabase.from('metas_ahorro').update({
+      monto_actual:nuevo,completada,synced_at:new Date().toISOString()
+    }).eq('sync_id',meta.sync_id).eq('user_id',userId);
+    setAbonandoId(null);setAbonoMonto('');
+    load();
+  }
+
+  if(loading)return <div className="pwa-tab-content"><div className="pwa-spinner"/></div>;
+  const activas=metas.filter(m=>!m.completada);
+  const completadas=metas.filter(m=>m.completada);
+
+  const MetaCard=({m})=>{
+    const pct=m.monto_objetivo>0?Math.min(100,(m.monto_actual/m.monto_objetivo)*100):0;
+    const color=m.color||'#6366f1';
+    return <div className="pwa-card">
+      <div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <div style={{width:10,height:10,borderRadius:'50%',background:color,flexShrink:0}}/>
+          <div style={{fontWeight:700,fontSize:14}}>{m.nombre}</div>
+        </div>
+        <div style={{fontSize:13}}>
+          <span style={{color,fontWeight:700}}>{MXN(m.monto_actual)}</span>
+          <span style={{color:'var(--muted)'}}> / {MXN(m.monto_objetivo)}</span>
+        </div>
+      </div>
+      <div style={{height:6,background:'var(--border)',borderRadius:99,overflow:'hidden'}}>
+        <div style={{height:'100%',width:`${pct}%`,background:color,borderRadius:99,transition:'width 0.4s ease'}}/>
+      </div>
+      <div style={{display:'flex',justifyContent:'space-between',marginTop:4}}>
+        <span style={{fontSize:11,color:'var(--muted)'}}>{pct.toFixed(0)}% completado</span>
+        {m.fecha_limite&&<span style={{fontSize:11,color:'var(--muted)'}}>Meta: {m.fecha_limite}</span>}
+      </div>
+      {!m.completada&&(
+        abonandoId===m.id?(
+          <div style={{display:'flex',gap:8,alignItems:'center',marginTop:10}}>
+            <input className="pwa-input" type="number" min="0.01" step="0.01" value={abonoMonto}
+              onChange={e=>setAbonoMonto(e.target.value)} placeholder="Monto a abonar" style={{flex:1}} autoFocus/>
+            <button className="pwa-submit" style={{flex:'none',padding:'10px 14px',marginTop:0}}
+              disabled={!abonoMonto||Number(abonoMonto)<=0}
+              onClick={()=>abonar(m,Number(abonoMonto))}>Abonar</button>
+            <button onClick={()=>{setAbonandoId(null);setAbonoMonto('');}} style={{background:'none',border:'none',color:'var(--muted)',cursor:'pointer',fontSize:20,padding:'4px 8px'}}>×</button>
+          </div>
+        ):(
+          <button className="pwa-method-btn" style={{width:'100%',padding:10,marginTop:10}}
+            onClick={()=>{setAbonandoId(m.id);setAbonoMonto('');}}>Abonar a esta meta</button>
+        )
+      )}
+    </div>;
+  };
+
+  return <div className="pwa-tab-content">
+    <div className="pwa-section-title">Metas de ahorro</div>
+    {metas.length===0&&<div className="pwa-empty">Sin metas configuradas.<br/>Créalas desde la app de escritorio.</div>}
+    {activas.map(m=><MetaCard key={m.id} m={m}/>)}
+    {completadas.length>0&&<>
+      <div className="pwa-section-title" style={{marginTop:16}}>Completadas ✓</div>
+      {completadas.map(m=>(
+        <div key={m.id} className="pwa-card" style={{opacity:0.6}}>
+          <div style={{display:'flex',justifyContent:'space-between'}}>
+            <div style={{display:'flex',alignItems:'center',gap:8}}>
+              <div style={{width:10,height:10,borderRadius:'50%',background:m.color||'#6366f1'}}/>
+              <div style={{fontWeight:700,fontSize:14}}>{m.nombre}</div>
+            </div>
+            <div style={{fontSize:13,color:'var(--green)',fontWeight:700}}>✓ {MXN(m.monto_objetivo)}</div>
+          </div>
+        </div>
+      ))}
+    </>}
+  </div>;
+}
+
 // ── Tab: Movimientos ───────────────────────────────────────────────────────────
 function MovimientosTab({movements,onDelete,onEdit,swipedId,setSwipedId}){
   if(movements.length===0)return <div className="pwa-tab-content"><div className="pwa-empty">Sin movimientos en este periodo.<br/>Registra uno desde la pestaña Inicio.</div></div>;
@@ -836,6 +995,8 @@ export default function App(){
     {id:'movs',     label:'Movimientos', icon:<Ico.list/>},
     {id:'cobros',   label:'Pendientes',  icon:<Ico.clock/>},
     {id:'fijos',    label:'Fijos',       icon:<Ico.repeat/>},
+    {id:'presup',   label:'Presup.',     icon:<Ico.budget/>},
+    {id:'metas',    label:'Metas',       icon:<Ico.target/>},
   ];
 
   return <div className="pwa-shell">
@@ -913,6 +1074,8 @@ export default function App(){
       {activeTab==='movs'&&<MovimientosTab movements={movements} onDelete={handleDelete} onEdit={m=>{setEditingMov(m);setActiveSheet(m.tipo);}} swipedId={swipedId} setSwipedId={setSwipedId}/>}
       {activeTab==='cobros'&&<CobrosTab userId={session.user.id} onRefresh={refresh} period={period}/>}
       {activeTab==='fijos'&&<FijosTab userId={session.user.id}/>}
+      {activeTab==='presup'&&<PresupuestosTab userId={session.user.id} selectedMonth={selectedMonth} movements={movements}/>}
+      {activeTab==='metas'&&<MetasTab userId={session.user.id}/>}
     </div>
 
     {/* Tab bar */}
