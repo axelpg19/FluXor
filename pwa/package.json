@@ -1,6 +1,6 @@
 {
   "name": "fluxor-pwa",
-  "version": "2.6.28",
+  "version": "2.6.39",
   "type": "module",
   "scripts": {
     "dev": "vite",
