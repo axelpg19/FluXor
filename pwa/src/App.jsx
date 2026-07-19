@@ -464,8 +464,13 @@ function MovementSheet({tipo,userId,cards=[],onSave,onClose,editing=null}){
       moneda:form.moneda,monto_original:esMXN?null:Number(form.monto),tipo_cambio:esMXN?1:Number(form.tipo_cambio),
       synced_at:new Date().toISOString()};
     let err;
-    if(editing){const {error:e}=await supabase.from('movimientos').update(payload).eq('id',editing.id);err=e;}
-    else{const {error:e}=await supabase.from('movimientos').insert({...payload,sync_id:crypto.randomUUID()});err=e;}
+    if(editing){
+      const {error:e}=await supabase.from('movimientos')
+        .update({...payload, synced_at:new Date().toISOString()})
+        .eq('sync_id',editing.sync_id)
+        .eq('user_id',userId);
+      err=e;
+    } else{const {error:e}=await supabase.from('movimientos').insert({...payload,sync_id:crypto.randomUUID()});err=e;}
     setSaving(false);
     if(err){setError('Error al guardar. Intenta de nuevo.');return;}
     onSave();
@@ -642,7 +647,7 @@ function FijosTab({userId}){
   },[userId]);
   useEffect(()=>{load();},[load]);
   async function toggle(r){
-    await supabase.from('recurrentes').update({activo:r.activo?0:1,synced_at:new Date().toISOString()}).eq('id',r.id);
+    await supabase.from('recurrentes').update({activo:r.activo?0:1,synced_at:new Date().toISOString()}).eq('sync_id',r.sync_id).eq('user_id',userId);
     load();
   }
   if(loading)return <div className="pwa-tab-content"><div className="pwa-spinner"/></div>;
@@ -752,7 +757,7 @@ function MetasTab({userId}){
       .select('*')
       .eq('user_id',userId)
       .order('completada',{ascending:true})
-      .order('id',{ascending:false});
+      .order('sync_id',{ascending:false});
     setMetas((data||[]).filter(m=>!m.deleted_at));
     setLoading(false);
   },[userId]);
