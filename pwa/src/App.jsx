@@ -429,12 +429,15 @@ function PWASearch({userId,onClose}){
 function MovementSheet({tipo,userId,cards=[],onSave,onClose,editing=null}){
   const [form,setForm]=useState({
     monto:editing?.monto||'', categoria:editing?.categoria||'',
-    metodo:editing?.metodo||'efectivo', fuente:editing?.fuente||'',
+    metodo:editing?.metodo==='transferencia'?'tarjeta':(editing?.metodo||'efectivo'),
+    fuente:editing?.fuente||'', destino:editing?.destino||'',
     fecha:editing?.fecha||todayISO(), moneda:editing?.moneda||'MXN',
     tipo_cambio:editing?.tipo_cambio&&editing.tipo_cambio!==1?String(editing.tipo_cambio):'',
   });
   const [saving,setSaving]=useState(false),[error,setError]=useState('');
   const [fetchingRate,setFetchingRate]=useState(false),[showCur,setShowCur]=useState(false);
+  // "Fue una transferencia": solo disponible con gasto + tarjeta de débito.
+  const [esTransferencia,setEsTransferencia]=useState(editing?.metodo==='transferencia');
   const prevMoneda=useRef(form.moneda);
   const esMXN=form.moneda==='MXN';
   const tcNum=esMXN?1:(Number(form.tipo_cambio)||0);
@@ -444,6 +447,8 @@ function MovementSheet({tipo,userId,cards=[],onSave,onClose,editing=null}){
   const creditCards=cards.filter(c=>c.tipo==='credito');
   const debitCards=cards.filter(c=>c.tipo==='debito');
   const availCards=form.metodo==='tarjeta'?[...creditCards,...debitCards]:[];
+  const selectedCardMeta=cards.find(c=>c.nombre===form.fuente);
+  const canBeTransferencia=tipo==='gasto'&&form.metodo==='tarjeta'&&selectedCardMeta?.tipo==='debito';
   const typeLabel={gasto:'Gasto',ingreso:'Ingreso',pendiente:'Pendiente',transferencia:'Transferencia'};
   useEffect(()=>{
     if(esMXN||form.moneda===prevMoneda.current)return;
@@ -459,18 +464,18 @@ function MovementSheet({tipo,userId,cards=[],onSave,onClose,editing=null}){
     if(!esMXN&&!form.tipo_cambio){setError('Ingresa el tipo de cambio.');return;}
     setSaving(true);setError('');
     const montoFinal=esMXN?Number(form.monto):Math.round(montoMXN*100)/100;
+    const isTransferPWA=canBeTransferencia&&esTransferencia;
     const payload={user_id:userId,tipo,monto:montoFinal,categoria:form.categoria.trim(),
-      metodo:form.metodo,fuente:form.fuente||null,fecha:form.fecha,estado:'activo',recurrente:0,
+      metodo:isTransferPWA?'transferencia':form.metodo,
+      subtipo:form.metodo==='tarjeta'?(selectedCardMeta?.tipo||(isTransferPWA?'debito':null)):null,
+      fuente:form.fuente||null,
+      destino:isTransferPWA?(form.destino.trim()||null):null,
+      fecha:form.fecha,estado:'activo',recurrente:0,
       moneda:form.moneda,monto_original:esMXN?null:Number(form.monto),tipo_cambio:esMXN?1:Number(form.tipo_cambio),
       synced_at:new Date().toISOString()};
     let err;
-    if(editing){
-      const {error:e}=await supabase.from('movimientos')
-        .update({...payload, synced_at:new Date().toISOString()})
-        .eq('sync_id',editing.sync_id)
-        .eq('user_id',userId);
-      err=e;
-    } else{const {error:e}=await supabase.from('movimientos').insert({...payload,sync_id:crypto.randomUUID()});err=e;}
+    if(editing){const {error:e}=await supabase.from('movimientos').update(payload).eq('id',editing.id);err=e;}
+    else{const {error:e}=await supabase.from('movimientos').insert({...payload,sync_id:crypto.randomUUID()});err=e;}
     setSaving(false);
     if(err){setError('Error al guardar. Intenta de nuevo.');return;}
     onSave();
@@ -535,6 +540,16 @@ function MovementSheet({tipo,userId,cards=[],onSave,onClose,editing=null}){
             <option value="">Sin especificar</option>
             {availCards.map(c=><option key={c.id||c.nombre} value={c.nombre}>{c.nombre} ({c.tipo})</option>)}
           </select>
+        </div>}
+        {canBeTransferencia&&<div style={{display:'flex',flexDirection:'column',gap:10}}>
+          <label style={{display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:600}}>
+            <input type="checkbox" checked={esTransferencia} onChange={e=>setEsTransferencia(e.target.checked)}/>
+            Fue una transferencia (no una compra)
+          </label>
+          {esTransferencia&&<div>
+            <span style={{fontSize:11.5,fontWeight:600,color:'var(--muted)',display:'block',marginBottom:6}}>Destino (opcional)</span>
+            <input className="pwa-input" type="text" value={form.destino} onChange={e=>setForm(f=>({...f,destino:e.target.value}))} placeholder="Persona, banco o cuenta destino"/>
+          </div>}
         </div>}
         <div>
           <span style={{fontSize:11.5,fontWeight:600,color:'var(--muted)',display:'block',marginBottom:6}}>Fecha</span>
@@ -647,7 +662,7 @@ function FijosTab({userId}){
   },[userId]);
   useEffect(()=>{load();},[load]);
   async function toggle(r){
-    await supabase.from('recurrentes').update({activo:r.activo?0:1,synced_at:new Date().toISOString()}).eq('sync_id',r.sync_id).eq('user_id',userId);
+    await supabase.from('recurrentes').update({activo:r.activo?0:1,synced_at:new Date().toISOString()}).eq('id',r.id);
     load();
   }
   if(loading)return <div className="pwa-tab-content"><div className="pwa-spinner"/></div>;
@@ -757,7 +772,7 @@ function MetasTab({userId}){
       .select('*')
       .eq('user_id',userId)
       .order('completada',{ascending:true})
-      .order('sync_id',{ascending:false});
+      .order('id',{ascending:false});
     setMetas((data||[]).filter(m=>!m.deleted_at));
     setLoading(false);
   },[userId]);
@@ -843,7 +858,7 @@ function MovimientosTab({movements,onDelete,onEdit,swipedId,setSwipedId}){
   return <div className="pwa-tab-content">
     <div className="pwa-section-title">{movements.length} movimiento{movements.length!==1?'s':''} en el periodo</div>
     {movements.map(m=>{
-      const meta=TYPE_META[m.tipo]||TYPE_META.gasto;
+      const meta=m.metodo==='transferencia'?TYPE_META.transferencia:(TYPE_META[m.tipo]||TYPE_META.gasto);
       const sign=m.tipo==='ingreso'?'+':m.tipo==='gasto'?'-':'';
       const isSwiped=swipedId===m.id;
       return <div key={m.sync_id||m.id} className="pwa-movement-swipe-wrap">
@@ -1052,7 +1067,7 @@ export default function App(){
         {(metrics.ingresos>0||metrics.gastos>0)&&<MiniDonut ingresos={metrics.ingresos} gastos={metrics.gastos}/>}
         {/* Acciones */}
         <div className="pwa-actions">
-          {Object.entries(TYPE_META).map(([tipo,meta])=><button key={tipo} className={`pwa-action-btn ${meta.cls}`} onClick={()=>{setEditingMov(null);setActiveSheet(tipo);}}>
+          {Object.entries(TYPE_META).filter(([tipo])=>tipo!=='transferencia').map(([tipo,meta])=><button key={tipo} className={`pwa-action-btn ${meta.cls}`} onClick={()=>{setEditingMov(null);setActiveSheet(tipo);}}>
             <span style={{color:meta.color,fontSize:18}}>{meta.icon}</span>
             <span>{meta.label}</span>
           </button>)}
@@ -1062,7 +1077,7 @@ export default function App(){
           <div className="pwa-movements-title">Últimos movimientos</div>
           {movements.length===0&&<div className="pwa-empty">Sin movimientos en este periodo.</div>}
           {movements.slice(0,8).map(m=>{
-            const meta=TYPE_META[m.tipo]||TYPE_META.gasto;
+            const meta=m.metodo==='transferencia'?TYPE_META.transferencia:(TYPE_META[m.tipo]||TYPE_META.gasto);
             const sign=m.tipo==='ingreso'?'+':m.tipo==='gasto'?'-':'';
             return <div key={m.sync_id||m.id} className="pwa-movement-row" onClick={()=>{setEditingMov(m);setActiveSheet(m.tipo);}}>
               <div className={`pwa-movement-icon ${meta.cls}`}>{meta.icon}</div>
